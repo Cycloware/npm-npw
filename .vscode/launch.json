@@ -9,7 +9,7 @@
       "type": "node",
       "request": "launch",
       "protocol": "inspector",
-      "program": "${workspaceRoot}/bin.js",
+      "program": "${workspaceRoot}/lib/bin.js",
       "stopOnEntry": false,
       "args": [
         "i",

@@ -8,7 +8,5 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "screen-clear": "^1.0.12"
-  }
+  "dependencies": {}
 }
