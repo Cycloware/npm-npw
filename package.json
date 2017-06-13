@@ -1,0 +1,61 @@
+{
+  "name": "npm-npw",
+  "version": "1.0.0",
+  "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
+  "bin": {
+    "npw": "./lib/bin.js"
+  },
+  "files": [
+    "lib"
+  ],
+  "preferGlobal": true,
+  "engines": {
+    "node": ">=7",
+    "npm": ">=5"
+  },
+  "scripts": {
+    "test-blast-npm": "cd temp && node ../lib/bin.js --blast i screen-clear",
+    "test-npm-only": "cd temp && node ../lib/bin.js un screen-clear",
+    "test-blast-only": "cd temp && node ../lib/bin.js --blast"
+  },
+  "author": "Kavan J. Shaban (Cycloware, LLC)",
+  "homepage": "https://github.com/Cycloware/npm-npw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cycloware/npm-npw.git"
+  },
+  "contributors": [
+    {
+      "name": "Kavan Shaban",
+      "url": "https://github.com/kavanshaban"
+    },
+    {
+      "name": "Cycloware",
+      "url": "https://github.com/Cycloware"
+    }
+  ],
+  "keywords": [
+    "install",
+    "reinstall",
+    "package",
+    "module"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Cycloware/npm-npw/issues"
+  },
+  "dependencies": {
+    "arrvl": "^1.0.0",
+    "chalk": "^1.1.3",
+    "colors": "^1.1.2",
+    "cross-spawn": "^5.1.0",
+    "del": "^2.2.2",
+    "nvl": "^1.0.1",
+    "ora": "^1.2.0",
+    "update-notifier": "^2.1.0",
+    "yargs": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/yargs": "^6.6.0"
+  }
+}
