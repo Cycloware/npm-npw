@@ -1,6 +1,6 @@
 {
-  "name": "npm-npw",
-  "version": "1.0.0",
+  "name": "npw",
+  "version": "1.0.1",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "bin": {
     "npw-blast": "./lib/bin/npw-blast.js",
