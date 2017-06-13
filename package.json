@@ -12,12 +12,20 @@
     "npw-install": "./lib/bin/npw-install.js",
     "npw-in": "./lib/bin/npw-install.js",
     "npw-i": "./lib/bin/npw-install.js",
+    "npw-install-dev": "./lib/bin/npw-install-dev.js",
+    "npw-ind": "./lib/bin/npw-install-dev.js",
+    "npw-id": "./lib/bin/npw-install-dev.js",
     "npw-reinstall": "./lib/bin/npw-reinstall.js",
     "npw-ri": "./lib/bin/npw-reinstall.js",
     "npw-r": "./lib/bin/npw-reinstall.js",
+    "npw-unlink": "./lib/bin/npw-unlink.js",
+    "npw-relink": "./lib/bin/npw-relink.js",
     "npw-uninstall": "./lib/bin/npw-uninstall.js",
     "npw-un": "./lib/bin/npw-uninstall.js",
     "npw-u": "./lib/bin/npw-uninstall.js",
+    "npw-uninstall-install": "./lib/bin/npw-uninstall-install.js",
+    "npw-un-in": "./lib/bin/npw-uninstall-install.js",
+    "npw-unin": "./lib/bin/npw-uninstall-install.js",
     "npw": "./lib/bin/npw.js"
   },
   "files": [
@@ -72,6 +80,7 @@
     "fs-extra-promise": "^1.0.1",
     "nvl": "^1.0.1",
     "ora": "^1.2.0",
+    "unquote": "^1.1.0",
     "update-notifier": "^2.1.0",
     "yargs": "^8.0.1"
   },

@@ -52,6 +52,10 @@ Shortcuts
 > - adds `install` npm option
 > 
 
+> `npw-install-dev`, `npw-ind`, `npw-id`
+> - adds `install` and `--save-dev` npm option
+> 
+
 > `npw-uninstall`, `npw-un`, `npw-u`
 > - adds `uninstall` npm option
 > 
