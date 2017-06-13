@@ -69,6 +69,7 @@
     "yargs": "^8.0.1"
   },
   "devDependencies": {
+    "@types/fs-extra-promise": "^1.0.1",
     "@types/yargs": "^6.6.0"
   }
 }
