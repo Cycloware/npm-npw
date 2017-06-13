@@ -37,6 +37,7 @@
     "npm": ">=5"
   },
   "scripts": {
+    "test-cd-npw": "node ../lib/bin/npw.js cd temp --blast i screen-clear",
     "test-npw": "cd temp && node ../lib/bin/npw.js --blast i screen-clear",
     "test-npw-uninstall": "cd temp && node ../lib/bin/npw-uninstall.js screen-clear",
     "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js"

@@ -12,6 +12,8 @@
       "program": "${workspaceRoot}/lib/bin/npw.js",
       "stopOnEntry": false,
       "args": [
+        "cd",
+        "temp",
         "i",
         "screen-clear",
         "--blast"
