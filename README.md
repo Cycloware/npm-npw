@@ -40,7 +40,15 @@ Shortcuts
 > - adds `--blast` option
 > 
 
-> `npw-install`, `npw-i`
+> `npw-blast-node`, `npw-bn`
+> - adds `--blast-node` option
+> 
+
+> `npw-blast-lock`, `npw-bl`
+> - adds `--blast-lock` option
+> 
+
+> `npw-install`, `npw-in`, `npw-i`
 > - adds `install` npm option
 > 
 
@@ -48,6 +56,6 @@ Shortcuts
 > - adds `uninstall` npm option
 > 
 
-> `npw-reinstall`, `npw-b`
+> `npw-reinstall`, `npw-ri`, `npw-r`
 > - adds `--blast` option and `install` npm option
 > 
