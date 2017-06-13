@@ -1,6 +1,6 @@
 {
   "name": "npw",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "bin": {
     "npw-blast": "./lib/bin/npw-blast.js",
@@ -26,6 +26,8 @@
     "npw-uninstall-install": "./lib/bin/npw-uninstall-install.js",
     "npw-un-in": "./lib/bin/npw-uninstall-install.js",
     "npw-unin": "./lib/bin/npw-uninstall-install.js",
+    "npw-run": "./lib/bin/npw-run.js",
+    "npr": "./lib/bin/npw-run.js",
     "npw": "./lib/bin/npw.js"
   },
   "files": [
