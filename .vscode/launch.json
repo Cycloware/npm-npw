@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "bin.js",
+      "name": "npw.js",
       "type": "node",
       "request": "launch",
       "protocol": "inspector",
@@ -17,6 +17,27 @@
         "i",
         "screen-clear",
         "--blast"
+      ],
+      "cwd": "${workspaceRoot}/temp",
+      "preLaunchTask": null,
+      "runtimeExecutable": null,
+      "runtimeArgs": [
+        "--nolazy"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "name": "npw-uninstall-global.js",
+      "type": "node",
+      "request": "launch",
+      "protocol": "inspector",
+      "program": "${workspaceRoot}/lib/bin/npw-uninstall-global.js",
+      "stopOnEntry": false,
+      "args": [
+        "ts-node",
+        "screen-clear"
       ],
       "cwd": "${workspaceRoot}/temp",
       "preLaunchTask": null,

@@ -1,8 +1,22 @@
 {
   "name": "npw",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "bin": {
+    "npw-list": "./lib/bin/npw-list.js",
+    "npw-ls": "./lib/bin/npw-list.js",
+    "npw-list-global": "./lib/bin/npw-list-global.js",
+    "npw-ls-global": "./lib/bin/npw-list-global.js",
+    "npw-ls-g": "./lib/bin/npw-list-global.js",
+    "npw-install-global": "./lib/bin/npw-install-global.js",
+    "npw-i-global": "./lib/bin/npw-install-global.js",
+    "npw-i-g": "./lib/bin/npw-install-global.js",
+    "npw-uninstall-global": "./lib/bin/npw-uninstall-global.js",
+    "npw-un-global": "./lib/bin/npw-uninstall-global.js",
+    "npw-un-g": "./lib/bin/npw-uninstall-global.js",
+    "npw-reinstall-global": "./lib/bin/npw-reinstall-global.js",
+    "npw-ri-global": "./lib/bin/npw-reinstall-global.js",
+    "npw-ri-g": "./lib/bin/npw-reinstall-global.js",
     "npw-blast": "./lib/bin/npw-blast.js",
     "npw-b": "./lib/bin/npw-blast.js",
     "npw-blast-node": "./lib/bin/npw-blast-node.js",
@@ -37,12 +51,6 @@
   "engines": {
     "node": ">=7",
     "npm": ">=5"
-  },
-  "scripts": {
-    "test-cd-npw": "node ../lib/bin/npw.js cd temp --blast i screen-clear",
-    "test-npw": "cd temp && node ../lib/bin/npw.js --blast i screen-clear",
-    "test-npw-uninstall": "cd temp && node ../lib/bin/npw-uninstall.js screen-clear",
-    "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js"
   },
   "author": "Kavan J. Shaban (Cycloware, LLC)",
   "homepage": "https://github.com/Cycloware/npm-npw",
@@ -81,6 +89,7 @@
     "cross-spawn": "^5.1.0",
     "del": "^3.0.0",
     "fs-extra-promise": "^1.0.1",
+    "is-root": "^1.0.0",
     "nvl": "^1.0.1",
     "ora": "^1.2.0",
     "unquote": "^1.1.0",
