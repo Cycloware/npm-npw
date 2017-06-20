@@ -18,13 +18,22 @@ import { CommandBuilder } from './commandBuilder';
 
 export function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<any> {
 
+  let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
+  if (argsIn.length === 0) {
+    argsIn = process.argv.slice(2);
+  } else {
+    if (argsAsIs.length === 0) {
+      argsIn = argsIn.concat(process.argv.slice(2))
+    }
+  }
+
   const baseDir = process.cwd();
   const absoluteBaseDir = path.resolve(baseDir);
 
   const absoluteModuleDir = path.resolve(absoluteBaseDir, 'link_modules');
   const currentDirectory = process.cwd();
 
-  console.log(`absoluteBaseDir: ${absoluteBaseDir.red}`);
+  console.log(`absoluteBaseDir: ${absoluteBaseDir.green}`);
   console.log(`absoluteModuleDir: ${absoluteModuleDir.green}`);
   console.log(`currentDirectory: ${currentDirectory.green}`);
 

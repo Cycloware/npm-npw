@@ -25,10 +25,10 @@ if (executingAsRoot) {
 export function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<void | -1 | -2> {
 
   let { commandText, argsIn = [], argsAsIs = [], } = exec;
-  if (argsIn.length > 1) {
+  if (argsIn.length === 0) {
     argsIn = process.argv.slice(2);
   } else {
-    if (argsAsIs.length > 1) {
+    if (argsAsIs.length === 0) {
       argsIn = argsIn.concat(process.argv.slice(2))
     }
   }

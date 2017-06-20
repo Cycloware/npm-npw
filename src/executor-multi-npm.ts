@@ -24,14 +24,13 @@ if (executingAsRoot) {
 export function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }) : Promise<void| number> {
 
   let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
-  if (argsIn.length > 1) {
+  if (argsIn.length === 0) {
     argsIn = process.argv.slice(2);
   } else {
-    if (argsAsIs.length > 1) {
+    if (argsAsIs.length === 0) {
       argsIn = argsIn.concat(process.argv.slice(2))
     }
   }
-
 
   const commands = new CommandBuilder();
 
