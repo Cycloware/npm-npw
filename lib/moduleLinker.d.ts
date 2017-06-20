@@ -1,8 +1,9 @@
 /// <reference types="bluebird" />
 import 'colors';
 import * as Promise from 'bluebird';
-export declare function executor(exec: {
+export declare function moduleLinker(exec: {
     commandText: string;
-    argsIn: string[];
+    argsIn?: string[];
     argsAsIs?: string[];
-}): Promise<void | -1 | -2>;
+    argsToNpm?: string[];
+}): Promise<any>;

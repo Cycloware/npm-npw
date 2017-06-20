@@ -22,7 +22,7 @@ if (executingAsRoot) {
   console.log(`Running as:  ${executingAsRoot ? 'SUDO'.red : 'normal user'.green}`)
 }
 
-export function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }) {
+export function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<void | -1 | -2> {
 
   let { commandText, argsIn = [], argsAsIs = [], } = exec;
   if (argsIn.length > 1) {
@@ -130,7 +130,7 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
     if (changeDirTo) {
       if (changeDirTo.length < 1) {
         console.error(`${'Error:'.red}  option '${'--cd'.red}' must be followed by a relative or absolute path.`);
-        return -1;
+        return Promise.reject(-1);
       } else {
         const rawDir = changeDirTo[0];
         const inputDir = unquote(rawDir);
@@ -153,11 +153,11 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
             // }
           } else {
             console.error(`${'Cannot change directory to:'.red}  '${inputDir.black.bgWhite}', please ensure it exists${inputRelative ? `, absolutePath '${absolutePath.black.bgWhite}', currentDirectory: ${startingDirectory.black.bgWhite}'` : ''}`)
-            return -1;
+            return Promise.reject(-1);
           }
         } catch (err) {
           console.error(`${'Cannot change directory to:'.red}  '${inputDir.black.bgWhite}', please ensure it exists${inputRelative ? `, absolutePath '${absolutePath.black.bgWhite}', currentDirectory: ${startingDirectory.black.bgWhite}'` : ''}; Error: ${chalk.red(err)}`)
-          return -1;
+          return Promise.reject(-1);
         }
       }
     }
@@ -213,12 +213,12 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
             console.log(`Using auto-determined package name '${autoDeterminedPackageName.yellow}' for ${dualPhaseMode.cyan} command.  From directory '${process.cwd().gray}'`)
           } else {
             console.error(`${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.`);
-            return -2;
+            return Promise.reject(-2);
           }
         }
         catch (err) {
           console.error(`${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.  Error: ${chalk.red(err)}`);
-          return -2;
+          return Promise.reject(-2);
         }
       }
     }
@@ -240,7 +240,7 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
             );
         } else {
           console.error(`Unknown dual-phase-mode '${(dualPhaseMode as string).red}'`);
-          return -1;
+          return Promise.reject(-1);
         }
       } else {
         npmPromise = npmPromise.then(() =>
@@ -251,7 +251,7 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
     if (argsPass1.length < 1) {
       if (dualPhaseMode) {
         console.error(`${dualPhaseMode.cyan} mode requires at least a package name`);
-        return -1;
+        return Promise.reject(-1);
       }
     }
 
@@ -279,7 +279,7 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
 
   } catch (err) {
     console.error(`${'Unhandled exception:'.red}  ${chalk.gray.bgBlack(err)}`);
-    return -1;
+    return Promise.reject(-1);
   }
   finally {
     if (changeWorkingDirBackTo) {
