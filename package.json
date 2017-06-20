@@ -1,6 +1,6 @@
 {
   "name": "npw",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "engines": {
     "node": ">=7",
@@ -36,11 +36,10 @@
     "npw-reinstall": "./lib/bin/npw-reinstall.js",
     "npw-ri": "./lib/bin/npw-reinstall.js",
     "npw-r": "./lib/bin/npw-reinstall.js",
-    "npw-unlink": "./lib/bin/npw-unlink.js",
-    "npw-relink": "./lib/bin/npw-relink.js",
+    "npw-package-unlink": "./lib/bin/npw-package-unlink.js",
+    "npw-package-relink": "./lib/bin/npw-package-relink.js",
     "npw-uninstall": "./lib/bin/npw-uninstall.js",
     "npw-un": "./lib/bin/npw-uninstall.js",
-    "npw-u": "./lib/bin/npw-uninstall.js",
     "npw-uninstall-install": "./lib/bin/npw-uninstall-install.js",
     "npw-un-in": "./lib/bin/npw-uninstall-install.js",
     "npw-unin": "./lib/bin/npw-uninstall-install.js",
@@ -52,7 +51,11 @@
     "test-cd-npw": "node lib/bin/npw.js cd temp --blast i screen-clear",
     "test-npw": "cd temp && node ../lib/bin/npw.js --blast i screen-clear",
     "test-npw-uninstall": "cd temp && node ../lib/bin/npw-uninstall.js screen-clear",
-    "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js"
+    "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js",
+    "build": "npm run build:lib",
+    "prebuild:lib": "clscr && rimraf lib",
+    "build:lib": "tsc -p src/tsconfig.json",
+    "build:lib:watch": "tsc -p src/tsconfig.json --watch --pretty"
   },
   "files": [
     "lib"
@@ -88,21 +91,25 @@
     "url": "https://github.com/Cycloware/npm-npw/issues"
   },
   "dependencies": {
-    "arrvl": "^1.0.0",
     "bluebird": "^3.5.0",
     "chalk": "^1.1.3",
     "colors": "^1.1.2",
     "del": "^3.0.0",
     "fs-extra-promise": "^1.0.1",
     "is-root": "^1.0.0",
-    "nvl": "^1.0.1",
-    "ora": "^1.2.0",
+    "ora": "^1.3.0",
     "unquote": "^1.1.0",
-    "update-notifier": "^2.1.0",
-    "yargs": "^8.0.1"
+    "update-notifier": "^2.1.0"
   },
   "devDependencies": {
+    "@cw-types/ambient-types": "^1.0.0-c",
+    "@cw-types/bluebird": "^3.5.3-b",
+    "@cw-types/ora": "^1.3.0",
+    "@types/chalk": "^0.4.31",
+    "@types/colors": "^1.1.3",
+    "@types/del": "^2.2.32",
     "@types/fs-extra-promise": "^1.0.1",
-    "@types/yargs": "^6.6.0"
+    "@types/is-root": "^1.0.0",
+    "@types/update-notifier": "^1.0.1"
   }
 }

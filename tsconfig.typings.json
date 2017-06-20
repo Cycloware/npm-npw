@@ -1,0 +1,23 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "rootDir": "./",
+    "baseUrl": "./",
+    "typeRoots": [
+      "./node_modules/@cw-types",
+      "./node_modules/@types"
+    ],
+    "paths": {
+      "*": [
+        "./node_modules/@cw-types/*",
+        "./node_modules/@types/*"
+      ],
+      "@cw-types/*": [
+        "./node_modules/@cw-types/*"
+      ],
+      "@types/*": [
+        "./node_modules/@types/*"
+      ]
+    }
+  }
+}
