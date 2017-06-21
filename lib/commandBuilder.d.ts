@@ -25,11 +25,13 @@ export declare namespace CommandBuilder {
     };
 }
 export declare class CommandBuilder {
-    commandObjects: CommandBuilder.ICommandObject[];
-    actionArrayMap: CommandBuilder.ICommandActionItem[];
-    lookupActionMap: CommandBuilder.TSwitchMap;
-    defaultCommandOptions: CommandBuilder.IOptions;
-    addCommandOption(switches: string[], action: CommandBuilder.CommandAction, options?: Partial<CommandBuilder.IOptions>): CommandBuilder.ICommandObject;
+    protected constructor();
+    static Start(): CommandBuilder;
+    protected commandObjects: CommandBuilder.ICommandObject[];
+    protected actionArrayMap: CommandBuilder.ICommandActionItem[];
+    protected lookupActionMap: CommandBuilder.TSwitchMap;
+    protected defaultCommandOptions: CommandBuilder.IOptions;
+    command(switches: string[], action: CommandBuilder.CommandAction, options?: Partial<CommandBuilder.IOptions>): this;
     private static nullActionItem;
     processCommands(argsIn: string[]): {
         actionsMatched: {

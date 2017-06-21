@@ -21,7 +21,7 @@ if (executingAsRoot) {
 }
 
 
-export function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }) : Promise<void| number> {
+export function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<void | number> {
 
   let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
   if (argsIn.length === 0) {
@@ -32,20 +32,19 @@ export function executor(exec: { commandText: string, argsIn?: string[], argsAsI
     }
   }
 
-  const commands = new CommandBuilder();
-
   let verbose = true;
   let global = true;
 
   let changeDirTo: string[] = undefined;
   const startingDirectory = process.cwd();
 
-  commands.addCommandOption(['--cd', '-cd', 'cd'],
+  const commands = CommandBuilder.Start()
+    .command(['--cd', '-cd', 'cd'],
     (nArgs) => {
       changeDirTo = nArgs;
     }, {
       nArgs: 1,
-    });
+    })
 
   const commandsResult = commands.processCommands(argsIn);
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;

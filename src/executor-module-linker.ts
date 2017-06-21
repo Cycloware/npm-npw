@@ -16,6 +16,10 @@ import { unquote } from './unquote';
 
 import { CommandBuilder } from './commandBuilder';
 
+const thisPackageInfo = require('../package.json');
+const thisPackageName = thisPackageInfo.name as string;
+const thisPackageVersion = thisPackageInfo.version as string;
+
 export function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<any> {
 
   let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
@@ -30,14 +34,29 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   const baseDir = process.cwd();
   const absoluteBaseDir = path.resolve(baseDir);
 
-  const absoluteModuleDir = path.resolve(absoluteBaseDir, 'link_modules');
-  const currentDirectory = process.cwd();
+  let controlFilename = '.cw_module_links'
+  let moduleTarget = 'link_modules';
+  let moduleTargetSource = 'default';
+  let rebuild = false;
 
-  console.log(`absoluteBaseDir: ${absoluteBaseDir.green}`);
-  console.log(`absoluteModuleDir: ${absoluteModuleDir.green}`);
-  console.log(`currentDirectory: ${currentDirectory.green}`);
+  const packageFilename = 'package.json';
 
-  const packagePath = path.resolve('package.json');
+  const commands = CommandBuilder.Start()
+    .command(['--target'],
+    (nArgs) => {
+      moduleTarget = nArgs[0];
+      moduleTargetSource = 'command';
+    }, {
+      nArgs: 1,
+    })
+    .command(['--rebuild'], () => {
+      rebuild = true;
+    })
+
+  const commandsResult = commands.processCommands(argsIn);
+  const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
+
+  const absolutePackagePath = path.resolve(absoluteBaseDir, packageFilename);
   function getPackageInfo(packagePath: string): { success: true, packageInfo: any } | { success: false, err: any, message: string } {
     try {
       return { success: true, packageInfo: require(packagePath) };
@@ -47,16 +66,19 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     }
   }
 
-  const packageResult = getPackageInfo(packagePath);
+  const packageResult = getPackageInfo(absolutePackagePath);
   if (packageResult.success === false) {
     console.error(packageResult.message)
     return Promise.reject(packageResult.message);
   }
 
-  const symlinkPackagesToRemap: TIndexerTo<{ packageName: string, rawValue: string, strippedValue: string, relativePath: string, absolutePath: string }> = {};
-  const badSymlinkPackagesToRemap: TIndexerTo<{ packageName: string, rawValue: string }> = {};
+  type TPackageToRemapHeader = { packageName: string, rawValue: string };
+  type TPackageToRemap = TPackageToRemapHeader & { strippedValue: string, relativePath: string, absolutePath: string };
+  const symlinkPackagesToRemap: TIndexerTo<TPackageToRemap> = {};
+  const badSymlinkPackagesToRemap: TIndexerTo<TPackageToRemapHeader> = {};
 
   const sectionName = 'cw:linkModules';
+  const sectionOptionsName = 'cw:LinkModules:options'
   const { packageInfo } = packageResult;
   const packagesToInclude = packageInfo[sectionName];
   if (typeof packagesToInclude !== 'object') {
@@ -64,6 +86,24 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     console.info(mes);
     return Promise.reject(mes);
   }
+
+  const linkModuleOptions = packageInfo[sectionOptionsName];
+  if (linkModuleOptions) {
+    if (moduleTargetSource === 'default') {
+      const { targetDir } = linkModuleOptions;
+      if (typeof targetDir === 'string') {
+        moduleTarget = targetDir;
+        moduleTargetSource = 'config';
+      }
+    }
+  }
+  const absoluteModuleDir = path.resolve(absoluteBaseDir, moduleTarget);
+  const currentDirectory = process.cwd();
+  console.log(`moduleTarget: ${moduleTarget.green}`)
+  console.log(`absoluteBaseDir: ${absoluteBaseDir.green}`);
+  console.log(`absoluteModuleDir: ${absoluteModuleDir.green}`);
+  console.log(`currentDirectory: ${currentDirectory.green}`);
+
   const filePrefix = 'file:';
   for (const packageName in packagesToInclude) {
     const value = packagesToInclude[packageName];
@@ -143,12 +183,30 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         process.chdir(newWorkingDir);
       }
 
+      const absoluteControlFilePath = path.resolve(absoluteModuleDir, controlFilename);
+      let currentControlFileOptions: IControlFileOptions;
+      try {
+        if (fs.existsSync(absoluteControlFilePath)) {
+          currentControlFileOptions = fs.readJsonSync(absoluteControlFilePath);
+        }
+      } catch (err) {
+        console.warn(`${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${chalk.gray(err)}`)
+      }
+
       try {
         const stats = fs.statSync(absoluteModuleDir);
       }
       catch (err) {
         fs.mkdirSync(absoluteModuleDir);
       }
+
+      type TPackagePath = { clean: string, raw: string };
+
+      type TPackageMapped = TPackageToRemap & {
+        splitPackageName: string[], packageName: string, fullPackageName: string, absolutePackageInstallPath: string,
+        linkType: string, relativeSourcePath: TPackagePath, absolutePackageDestinationPath: TPackagePath,
+      }
+      const mappedPackages: { [key: string]: TPackageMapped } = {};
 
       for (const fullPackageName in symlinkPackagesToRemap) {
         const splitPackageName = fullPackageName.split('/');
@@ -180,10 +238,68 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         // const relativeDestination = path.relative(absolutePackageDestinationPath, absoluteModuleDir);
         console.log(`Linking from '${relativeSourcePath.green}' [${relativeSourcePathRaw.gray}] to '${absolutePackageDestinationPath.yellow}'`)
         fs.symlinkSync(relativeSourcePath, absolutePackageDestinationPath, linkType);
+
+        mappedPackages[fullPackageName] = {
+          ...sourcePackageInfo,
+          sectionName,
+          splitPackageName,
+          packageName,
+          fullPackageName,
+          absolutePackageInstallPath,
+          linkType,
+          relativeSourcePath: {
+            clean: relativeSourcePath,
+            raw: relativeSourcePathRaw,
+          },
+          absolutePackageDestinationPath: {
+            clean: absolutePackageDestinationPath,
+            raw: absolutePackageDestinationPathRaw,
+          },
+        }
       }
 
 
       console.log(`All done, creating [${symlinkPackagesToRemapKeys.length.toString().green}] symlinks`);
+
+      const mappedPackagesKeys = Object.keys(mappedPackages);
+
+      type IControlFileOptions = typeof newContorlOptons;
+
+      const newContorlOptons = {
+        package: thisPackageName,
+        version: thisPackageVersion,
+
+        pathLib,
+        pathSeperatorBad,
+        pathSeperatorGood,
+        linkType,
+
+        absoluteBaseDir,
+        currentDirectory,
+
+        absoluteModuleDir,
+        moduleTarget,
+        moduleTargetSource,
+
+        controlFilename,
+        absoluteControlFilePath,
+
+        absolutePackagePath,
+        packageFilename,
+
+        rebuild,
+
+        mappedPackagesCount: mappedPackagesKeys.length,
+        mappedPackages,
+
+        symlinkPackagesToRemapCount: symlinkPackagesToRemapKeys.length,
+        symlinkPackagesToRemap,
+
+        badSymlinkPackagesToRemapCount: badSymlinkPackagesToRemapKeys.length,
+        badSymlinkPackagesToRemap,
+      }
+
+      fs.writeJSONSync(absoluteControlFilePath, newContorlOptons, { spaces: 2 })
 
       if (workingDirChanged) {
         const newWorkingDir = path.relative(absoluteModuleDir, currentDirectory);

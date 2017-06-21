@@ -1,6 +1,6 @@
 {
   "name": "npw",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "engines": {
     "node": ">=7",
@@ -53,8 +53,9 @@
     "test-npw": "cd temp && node ../lib/bin/npw.js --blast i screen-clear",
     "test-npw-uninstall": "cd temp && node ../lib/bin/npw-uninstall.js screen-clear",
     "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js",
-    "build": "npm run build:lib",
+    "build": "npm run build:lib:prod",
     "prebuild:lib": "clscr && rimraf lib",
+    "build:lib:prod": "tsc -p src/tsconfig.json --inlineSourceMap false --sourceMap false --pretty",
     "build:lib": "tsc -p src/tsconfig.json",
     "build:lib:watch": "tsc -p src/tsconfig.json --watch --pretty"
   },

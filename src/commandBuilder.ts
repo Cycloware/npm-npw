@@ -32,11 +32,21 @@ export namespace CommandBuilder {
   }
 }
 export class CommandBuilder {
-  commandObjects: CommandBuilder.ICommandObject[] = [];
-  actionArrayMap: CommandBuilder.ICommandActionItem[] = [];
-  lookupActionMap: CommandBuilder.TSwitchMap = {};
-  defaultCommandOptions: CommandBuilder.IOptions = { nArgs: 0, justPeek: false };
-  addCommandOption(switches: string[], action: CommandBuilder.CommandAction, options?: Partial<CommandBuilder.IOptions>) {
+
+  protected constructor() {
+
+  }
+
+  public static Start()
+  {
+    return new CommandBuilder();
+  }
+
+  protected commandObjects: CommandBuilder.ICommandObject[] = [];
+  protected actionArrayMap: CommandBuilder.ICommandActionItem[] = [];
+  protected lookupActionMap: CommandBuilder.TSwitchMap = {};
+  protected defaultCommandOptions: CommandBuilder.IOptions = { nArgs: 0, justPeek: false };
+  command(switches: string[], action: CommandBuilder.CommandAction, options?: Partial<CommandBuilder.IOptions>) {
     let { nArgs, justPeek } = options || this.defaultCommandOptions;
     if (!nArgs || nArgs < 0) {
       nArgs = this.defaultCommandOptions.nArgs;
@@ -75,7 +85,7 @@ export class CommandBuilder {
       switchMap[actionKey] = actionItem;
     }
 
-    return commandObject;
+    return this;
   }
 
   private static nullActionItem: Partial<CommandBuilder.ICommandActionItem> = { nArgs: 0, justPeek: true, action: undefined };

@@ -35,8 +35,6 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
 
   notifier(); // Update notifier.
 
-  const commands = new CommandBuilder();
-
   let blast: DBlastMode;
   let verbose = true;
   let brief = false;
@@ -51,73 +49,71 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
   let changeDirTo: string[] = undefined;
   const startingDirectory = process.cwd();
 
-  commands.addCommandOption(['--list-globals', '--list-global', '-list-globals', '-list-global'],
+  const commands = CommandBuilder.Start()
+    .command(['--list-globals', '--list-global', '-list-globals', '-list-global'],
     (nArgs, argsToPass, argsToEnd) => {
       argsToPass.push('ls', '--global', '--depth', '0');
       if (lineEnding === 'default') {
         lineEnding = 'none';
       }
-    });
-
-  commands.addCommandOption(['--cd', '-cd', 'cd'],
+    })
+    .command(['--cd', '-cd', 'cd'],
     (nArgs) => {
-      changeDirTo = nArgs;
+      changeDirTo = nArgs
     }, {
       nArgs: 1,
-    });
-  commands.addCommandOption(['--loud', '-loud'],
+    })
+    .command(['--loud', '-loud'],
     () => {
-      loud = true;
-    });
-  commands.addCommandOption(['--global', '-g'],
+      loud = true
+    })
+    .command(['--global', '-g'],
     () => {
-      global = true;
+      global = true
       if (lineEnding === 'default') {
-        lineEnding = 'none';
+        lineEnding = 'none'
       }
     }, {
       justPeek: true,
-    });
-  commands.addCommandOption(['--run', '-run'],
+    })
+    .command(['--run', '-run'],
     (nArgs, argsToPass, argsToEnd) => {
-      argsToPass.push('run');
+      argsToPass.push('run')
       if (lineEnding === 'default') {
-        lineEnding = 'none';
+        lineEnding = 'none'
       }
-    });
-
-  commands.addCommandOption(['--dev', '-dev'],
+    })
+    .command(['--dev', '-dev'],
     (nArgs, argsToPass) => {
       argsToPass.push('--save-dev')
-    });
-  commands.addCommandOption(['--package-unlink'],
+    })
+    .command(['--package-unlink'],
     (nArgs, argsToPass) => {
-      argsToPass.push('uninstall', '-g');
-      unlinkMode = true;
-    });
-  commands.addCommandOption(['--package-relink'],
+      argsToPass.push('uninstall', '-g')
+      unlinkMode = true
+    })
+    .command(['--package-relink'],
     (nArgs, argsToPass) => {
       dualPhaseMode = 'package-relink'
-    });
-  commands.addCommandOption(['--uninstall-install', '--un-in', '--unin', 'uninstall-install', 'un-in', 'unin'],
+    })
+    .command(['--uninstall-install', '--un-in', '--unin', 'uninstall-install', 'un-in', 'unin'],
     (nArgs, argsToPass) => {
       dualPhaseMode = 'uninstall-install'
-    });
-  commands.addCommandOption(['--blast', '--blast-all', 'blast'],
-    () => blast = 'all');
-  commands.addCommandOption(['--blast-node', '--blast-node_modules', '--blast-node-modules', 'blast-node', 'blast-node_modules', 'blast-node-modules'],
-    () => blast = 'node');
-  commands.addCommandOption(['--blast-lock', 'blast-lock'],
-    () => blast = 'lock');
-  commands.addCommandOption(['--no-lines', '--no-line'],
-    () => noLines = true);
-
-  commands.addCommandOption(['--line-crlf', '--lines-crlf'],
-    () => lineEnding = 'crlf');
-  commands.addCommandOption(['--line-lf', '--lines-lf'],
-    () => lineEnding = 'lf');
-  commands.addCommandOption(['--line-cr', '--lines-cr'],
-    () => lineEnding = 'cr');
+    })
+    .command(['--blast', '--blast-all', 'blast'],
+    () => blast = 'all')
+    .command(['--blast-node', '--blast-node_modules', '--blast-node-modules', 'blast-node', 'blast-node_modules', 'blast-node-modules'],
+    () => blast = 'node')
+    .command(['--blast-lock', 'blast-lock'],
+    () => blast = 'lock')
+    .command(['--no-lines', '--no-line'],
+    () => noLines = true)
+    .command(['--line-crlf', '--lines-crlf'],
+    () => lineEnding = 'crlf')
+    .command(['--line-lf', '--lines-lf'],
+    () => lineEnding = 'lf')
+    .command(['--line-cr', '--lines-cr'],
+    () => lineEnding = 'cr')
 
   const commandsResult = commands.processCommands(argsIn);
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
