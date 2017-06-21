@@ -7,7 +7,7 @@
     "npm": ">=5"
   },
   "bin": {
-    "npw-link-modules": "./lib/bin/npm-link-modules.js",
+    "npw-link-modules": "./lib/bin/npw-link-modules.js",
     "npw-list": "./lib/bin/npw-list.js",
     "npw-ls": "./lib/bin/npw-list.js",
     "npw-list-global": "./lib/bin/npw-list-global.js",

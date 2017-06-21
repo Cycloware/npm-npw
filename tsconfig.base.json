@@ -9,6 +9,7 @@
     "noEmitOnError": true,
     "noImplicitAny": true,
     "noImplicitThis": true,
+    "noImplicitReturns": true,
     "removeComments": false,
     "inlineSourceMap": true,
     "emitDecoratorMetadata": true,

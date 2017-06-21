@@ -68,35 +68,44 @@ export namespace getStatInfo {
         result: ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error'),
         path,
         errorObject: err,
-      };
-    });
+      }
+    })
   }
 
-  export function Sync(path: string, resolveLinks: boolean) {
+  export function Sync(path: string, resolveLinks: boolean): TResult {
 
-    const lstatRet = fs.lstatSync(path);
-    const lstat = {
-      isDirectory: lstatRet.isDirectory(),
-      isFile: lstatRet.isFile(),
-      isSymbolicLink: lstatRet.isSymbolicLink(),
-      resolveLinks,
+    try {
+      const lstatRet = fs.lstatSync(path);
+      const resultRet: TResultGood = {
+        result: 'stat-returned',
+        path,
+        isDirectory: lstatRet.isDirectory(),
+        isFile: lstatRet.isFile(),
+        isSymbolicLink: lstatRet.isSymbolicLink(),
+        resolveLinks,
 
-      lstatRet,
-    };
+        stat: 'lstat',
+        statRet: lstatRet,
+      };
 
-    if (resolveLinks && lstat.isSymbolicLink) {
-      const statRet = fs.statSync(path);
-      return {
-        ...lstat,
-        resolvedLink: {
+      if (resolveLinks && resultRet.isSymbolicLink) {
+        const statRet = fs.statSync(path);
+        resultRet.resolvedLink = {
           isDirectory: statRet.isDirectory(),
           isFile: statRet.isFile(),
           isSymbolicLink: statRet.isSymbolicLink(),
 
+          stat: 'stat',
           statRet
         }
       }
+      return resultRet;
+    } catch (err) {
+      return {
+        result: ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error'),
+        path,
+        errorObject: err,
+      }
     }
-    return lstat;
   }
 }
