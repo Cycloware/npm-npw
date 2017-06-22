@@ -37,34 +37,40 @@ type TPackageToRemap = TPackageToRemapHeader & {
 
 // type TMessages = { errorMessage?: string, messages: { info: string[], warn: string[] }, };
 
-export interface IMessageLogger {
-  trace(msg: string): this;
-  info(msg: string): this;
-  warn(msg: string): this
-  error(msg: string): this;
-}
+export type IMessageLogger = {[P in KLogger]: (msg: string) => void};
+export type KLogger = 'trace' | 'info' | 'warn' | 'error';
 
-export const NullLogger: IMessageLogger = {
+const _consoleLoggerAllLevels = {
   trace(msg: string) {
     console.info(msg);
-    return this;
   },
   info(msg: string) {
     console.info(msg);
-    return this;
   },
   warn(msg: string) {
     console.warn(msg);
-    return this;
   },
   error(msg: string) {
     console.error(msg);
-    return this;
   }
+};
+
+const _nullOp = () => { };
+
+function buildLogger(levels: KLogger[]) {
+  const ret = { ..._consoleLoggerAllLevels };
+  for (const prop in ret) {
+    if (levels.indexOf(prop as KLogger) < 0) {
+      ret[prop as KLogger] = _nullOp;
+    }
+  }
+  return ret;
 }
 
+export let GlobalLogger: IMessageLogger = buildLogger(['warn', 'error']);
+
 interface IMessagesCore extends IMessageLogger {
-  readonly items: { type: 'trace' | 'info' | 'warn' | 'error', msg: string }[];
+  readonly items: { type: KLogger, msg: string }[];
 }
 interface IMessages {
   messages: IMessagesCore;
@@ -86,20 +92,16 @@ function buildMessagesCore(): IMessagesCore {
     items: [],
 
     trace(msg: string) {
-      this.items.push({ type: 'info', msg });
-      return this;
+      this.items.push({ type: 'trace', msg });
     },
     info(msg: string) {
       this.items.push({ type: 'info', msg });
-      return this;
     },
     warn(msg: string) {
       this.items.push({ type: 'warn', msg })
-      return this;
     },
     error(msg: string) {
       this.items.push({ type: 'error', msg })
-      return this;
     },
   };
 }
@@ -162,7 +164,7 @@ export namespace ChangeDirectory {
     let _absoluteOldCurrentDirectory: string;
     let _absoluteNewCurrentDirectory: string;
     let _relativeNewCurrentDirectory: string;
-    let log = NullLogger;
+    let log = GlobalLogger;
     return new Promise<TResult>((resolve, reject) => {
       const { absoluteNewCurrentDirectory, currentDirectoryOverride = process.cwd(), action,
         caseSensitive = true } = args;
@@ -236,13 +238,13 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     pathSeperatorBad = pathSeperatorGood;
     pathSeperatorGood = t;
 
-    console.log(`${pathLib.yellow} file paths`);
+    GlobalLogger.info(`${pathLib.yellow} file paths`);
   } else if (pathMod.posix === path) {
     pathLib = 'POSIX';
     pathI = pathMod.posix;
-    console.log(`${pathLib.yellow} file paths`);
+    GlobalLogger.info(`${pathLib.yellow} file paths`);
   } else {
-    console.log(`${pathLib.red} file paths`);
+    GlobalLogger.info(`${pathLib.red} file paths`);
   }
 
   function cleanPath(pathIn: string) {
@@ -268,6 +270,12 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     .command(['--rebuild'], () => {
       rebuild = true;
     })
+    .command(['--trace', '--verbose-trace'], () => {
+      GlobalLogger = buildLogger(['trace', 'info', 'warn', 'error'])
+    })
+    .command(['--verbose'], () => {
+      GlobalLogger = buildLogger(['info', 'warn', 'error'])
+    })
     .command(['--ignore-case'], () => {
       caseSensitive = false;
     })
@@ -275,7 +283,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
 
   const compareStrings = getStringComparer(caseSensitive)
-  console.log(`Case-Sensitive Paths: ${caseSensitive ? 'true'.red : 'false'.green}`)
+  GlobalLogger.info(`Case-Sensitive Paths: ${caseSensitive ? 'true'.red : 'false'.green}`)
 
 
   const absolutePackagePath = path.resolve(absoluteBaseDir, packageFilename);
@@ -290,7 +298,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
 
   const packageResult = getPackageInfo(absolutePackagePath);
   if (packageResult.success === false) {
-    console.error(packageResult.message)
+    GlobalLogger.error(packageResult.message)
     return Promise.reject(packageResult.message);
   }
 
@@ -304,7 +312,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   const packagesToInclude = packageInfo[sectionName];
   if (typeof packagesToInclude !== 'object') {
     const mes = `No section '${sectionName.yellow}' in package.json`;
-    console.info(mes);
+    GlobalLogger.error(mes);
     return Promise.reject(mes);
   }
 
@@ -320,10 +328,10 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   }
   const absoluteModuleDir = path.resolve(absoluteBaseDir, moduleTarget);
   const currentDirectory = process.cwd();
-  console.log(`moduleTarget: ${moduleTarget.green}`)
-  console.log(`absoluteBaseDir: ${absoluteBaseDir.green}`);
-  console.log(`absoluteModuleDir: ${absoluteModuleDir.green}`);
-  console.log(`currentDirectory: ${currentDirectory.green}`);
+  GlobalLogger.trace(`moduleTarget: ${moduleTarget.green}`)
+  GlobalLogger.trace(`absoluteBaseDir: ${absoluteBaseDir.green}`);
+  GlobalLogger.trace(`absoluteModuleDir: ${absoluteModuleDir.green}`);
+  GlobalLogger.trace(`currentDirectory: ${currentDirectory.green}`);
 
   // splitPackageName: string[], packageName: string, fullPackageName: string, absolutePackageInstallPath: string,
   //       relativeSourcePath: TPackagePath, absolutePackageDestinationPath: TPackagePath,
@@ -378,15 +386,15 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
 
   const badSymlinkPackagesToRemapKeys = Object.keys(badSymlinkPackagesToRemap);
   if (badSymlinkPackagesToRemapKeys.length > 0) {
-    console.warn(`${'BAD SymlinkPackagesToRemap'.red} ${`package paths must start with '${filePrefix.green}'`}: ${_.values(badSymlinkPackagesToRemap).map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
+    GlobalLogger.warn(`${'BAD SymlinkPackagesToRemap'.red} ${`package paths must start with '${filePrefix.green}'`}: ${_.values(badSymlinkPackagesToRemap).map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
   }
 
   const symlinkPackagesToRemapKeys = Object.keys(symlinkPackagesToRemap);
   if (symlinkPackagesToRemapKeys.length > 0) {
-    console.log(`${'symlinkPackagesToRemap'.blue} [${symlinkPackagesToRemapKeys.length}]: ${_.values(symlinkPackagesToRemap).map(x => `${x.packageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
+    GlobalLogger.trace(`${'symlinkPackagesToRemap'.blue} [${symlinkPackagesToRemapKeys.length}]: ${_.values(symlinkPackagesToRemap).map(x => `${x.packageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
   }
   else {
-    console.log(`No ${'symlinkPackagesToRemap'.yellow} to map.`);
+    GlobalLogger.warn(`No ${'symlinkPackagesToRemap'.yellow} to map.`);
     return Promise.resolve(0);
   }
   const packagesNeedingInstallPathPresent = _.values(symlinkPackagesToRemap).filter(x => x.ensurePackageInstallPathPresent);
@@ -482,21 +490,23 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
           for (const item of items) {
             switch (item.type) {
               case 'error':
-                console.error(item.msg);
+                GlobalLogger.error(item.msg);
                 break;
               case 'warn':
-                console.warn(item.msg);
+                GlobalLogger.warn(item.msg);
                 break;
-              default:
               case 'info':
-                console.info(item.msg);
+                GlobalLogger.info(item.msg);
+              case 'trace':
+              default:
+                GlobalLogger.trace(item.msg);
                 break;
             }
           }
         }
       }
       if (errorMessage) {
-        console.error(errorMessage);
+        GlobalLogger.error(errorMessage);
       }
     }
   }
@@ -531,7 +541,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
             currentControlFileOptions = fs.readJsonSync(absoluteControlFilePath);
           }
         } catch (err) {
-          console.warn(`${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${chalk.gray(err)}`)
+          GlobalLogger.warn(`${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${chalk.gray(err)}`)
         }
 
         function linkModuleAsync(info: TPackageToRemap): Promise<TPackageMapped> {
@@ -659,7 +669,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         return Promise.all(promisesToMap).then(res => {
           res.forEach(p => printMessages(p));
 
-          console.log(`All done, creating [${symlinkPackagesToRemapKeys.length.toString().green}] symlinks`);
+          GlobalLogger.info(`All done, creating [${symlinkPackagesToRemapKeys.length.toString().green}] symlinks`);
 
           const mappedPackagesKeys = Object.keys(mappedPackages);
 
@@ -719,7 +729,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
           return Promise.resolve(symlinkPackagesToRemap);
         })
       } catch (err) {
-        console.error(`${'Error occurred'.red}:  ${err}`);
+        GlobalLogger.error(`${'Error occurred'.red}:  ${err}`);
         throw err;
       }
     }
