@@ -1,6 +1,6 @@
 {
   "name": "npw",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "engines": {
     "node": ">=7",

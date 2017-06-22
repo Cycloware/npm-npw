@@ -7,6 +7,7 @@ import { DBlastMode, spawnerNpm, spawnerLines, spawnerBlast } from './npm/spawne
 
 import fs = require('fs-extra-promise');
 import path = require('path');
+import del = require('del');
 
 import { unquote } from './unquote';
 
