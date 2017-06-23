@@ -33,13 +33,22 @@ type TPackageToRemap = TPackageToRemapHeader & {
   packageName: string, splitPackageName: string[], packageDestinationInModules: TPath, relativeSourcePath: TPath, absoluteSourcePath: TPath,
   ensurePackageInstallPathPresent: boolean, packageInstallHardFolderPath: string, absolutePackageInstallPath: string, relativePackageInstallPath: string,
   absoluteLinkToSourcePath: TPath, relativeLinkToSourcePath: TPath, absolutePackageDestinationPath: TPath, linkType: string,
-};
+}
 
+type TPath = { clean: string, raw: string }
 
-type TPath = { clean: string, raw: string };
+type KSourceChecks = 'source-not-directory' | 'source-not-found' | 'source-stat-error' | 'source-unhandled-error';
+type TPackageSourceValidationGood = {
+  status: 'source-not-checked' | 'source-valid',
+}
 
-
+type TPackageSourceValidationError = {
+  status: KSourceChecks,
+  errorMessage: string,
+}
+type TPackageSourceValidation = TPackageSourceValidationError | TPackageSourceValidationGood;
 type TPackageMappedCore = TPackageToRemap & IMessages & {
+  sourceValidation: TPackageSourceValidation,
   existing?: {
     linkTarget: TPath,
     absoluteLinkTarget: TPath,
@@ -49,7 +58,7 @@ type TPackageMappedCore = TPackageToRemap & IMessages & {
 
     existingDiffersByCase?: boolean,
   },
-};
+}
 type TPackageMappedGood = TPackageMappedCore & {
   status: 'mapped-fresh' | 'exists' | 'mapped-recreate',
 
@@ -57,7 +66,8 @@ type TPackageMappedGood = TPackageMappedCore & {
 type TPackageMappedError = TPackageMappedCore & IMessages.WithError & {
   status: 'error',
   statusSub: 'other' | 'exist-not-symlink' | 'read-existing-symlink' |
-  'remove-existing-symlink' | 'get-stat-info' | 'creating-symlink',
+  'remove-existing-symlink' | 'get-stat-info' | 'creating-symlink' |
+  'removing-invalid-source' | KSourceChecks,
 }
 
 type TPackageMapped = (TPackageMappedGood | TPackageMappedError);
@@ -88,6 +98,7 @@ ${'-'.repeat(titleLineLength).green}
   let moduleTarget = 'link_modules';
   let moduleTargetSource = 'default';
   let rebuild = false;
+  let validateSourcesExist = true;
   let allowLinksInPackageInstallPath = false;
   let caseSensitive = false;
 
@@ -169,9 +180,8 @@ ${'-'.repeat(titleLineLength).green}
     // return Promise.reject(packageResult.message);
   }
 
-  const symlinkPackagesToRemap: TIndexerTo<TPackageToRemap> = {};
-  const badSymlinkPackagesToRemap: TIndexerTo<TPackageToRemapHeader> = {};
-  const mappedPackages: { [key: string]: TPackageMapped } = {};
+  const packagesToLink: TPackageToRemap[] = [];
+  const packagesThatCantLink: TPackageToRemapHeader[] = [];
 
   const sectionName = 'cw:linkModules';
   const sectionOptionsName = 'cw:linkModules:options'
@@ -238,7 +248,7 @@ ${'-'.repeat(titleLineLength).green}
       const absolutePackageDestinationPath = cleanPathObj(path.resolve(absolutePackageInstallPath, packageName));
       const relativeLinkToSourcePath = cleanPathObj(path.relative(absolutePackageInstallPath, absoluteSourcePath.raw));
 
-      symlinkPackagesToRemap[packageName] = {
+      packagesToLink.push({
         fullPackageName,
         packageName,
         packageDestinationInModules,
@@ -254,30 +264,29 @@ ${'-'.repeat(titleLineLength).green}
         relativeLinkToSourcePath,
         absoluteLinkToSourcePath: absoluteSourcePath,
         absolutePackageDestinationPath,
-      }
+      })
     } else {
-      badSymlinkPackagesToRemap[fullPackageName] = {
+      packagesThatCantLink.push({
         fullPackageName,
         rawValue: value,
-      }
+      });
     }
   }
 
-  const badSymlinkPackagesToRemapKeys = Object.keys(badSymlinkPackagesToRemap);
-  if (badSymlinkPackagesToRemapKeys.length > 0) {
-    GlobalLogger.warn(` + ${'BAD SymlinkPackagesToRemap'.red} ${`package paths must start with '${filePrefix.green}'`}: ${_.values(badSymlinkPackagesToRemap).map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
+  if (packagesThatCantLink.length > 0) {
+    GlobalLogger.warn(` + ${'BAD packagesThatCantLink'.red} ${`package paths must start with '${filePrefix.green}'`}: ${packagesThatCantLink.map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
   }
 
-  const symlinkPackagesToRemapKeys = Object.keys(symlinkPackagesToRemap);
-  if (symlinkPackagesToRemapKeys.length > 0) {
-    GlobalLogger.trace(ch.gray(`${' + symlinkPackagesToRemap'.white} [${ch.white(symlinkPackagesToRemapKeys.length)}]: ${_.values(symlinkPackagesToRemap).map(x => `${x.fullPackageName.yellow} [${x.rawValue.white}]`).join(', ')}`));
+  if (packagesToLink.length > 0) {
+    GlobalLogger.trace(ch.gray(`${' + packagesToLink'.white} [${ch.white(packagesToLink.length)}]: ${packagesToLink.map(x => `${x.fullPackageName.yellow} [${x.rawValue.white}]`).join(', ')}`));
   }
   else {
-    GlobalLogger.warn(` + No ${'symlinkPackagesToRemap'.yellow} to map.`);
+    GlobalLogger.warn(` + No ${'packagesToLink'.yellow} to map.`);
     return 0;
   }
-  const packagesNeedingInstallPathPresent = _.values(symlinkPackagesToRemap).filter(x => x.ensurePackageInstallPathPresent);
-  const groupedPackagesNeedingInstallPath = _.groupBy(packagesNeedingInstallPathPresent, x => x.packageInstallHardFolderPath);
+
+  const packagesToLinkKeys = packagesToLink.map(x => x.fullPackageName);
+
 
   type TPackageInstallPath = {
     name: string,
@@ -287,8 +296,9 @@ ${'-'.repeat(titleLineLength).green}
     dependantPackages: string[];
   };
 
-  const moduleDirInstallInfo = { name: moduleTarget, type: 'Link Module Directory', absolutePackageInstallPath: absoluteModuleDir, relativePackageInstallPath: relativeModuleDir, dependantPackages: symlinkPackagesToRemapKeys };
+  const moduleDirInstallInfo = { name: moduleTarget, type: 'Link Module Directory', absolutePackageInstallPath: absoluteModuleDir, relativePackageInstallPath: relativeModuleDir, dependantPackages: packagesToLinkKeys };
 
+  const groupedPackagesNeedingInstallPath = _.groupBy(packagesToLink.filter(x => x.ensurePackageInstallPathPresent), x => x.packageInstallHardFolderPath);
   const ensureInstallPathsPresent: TPackageInstallPath[] =
     _.map(groupedPackagesNeedingInstallPath, (val, key) => {
       const fV = val[0];
@@ -415,13 +425,49 @@ ${'-'.repeat(titleLineLength).green}
     try {
 
       const absoluteControlFilePath = path.resolve(absoluteModuleDir, controlFilename);
-      let currentControlFileOptions: IControlFileOptions;
+      let currentControlRawData: IControlFileOptions;
       try {
-        currentControlFileOptions = await fs.readJsonAsync(absoluteControlFilePath);
+        currentControlRawData = await fs.readJsonAsync(absoluteControlFilePath);
       } catch (err) {
         if (err.code !== 'ENOENT') {
           GlobalLogger.warn(` + ${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${ch.gray(err)}`);
         }
+      }
+
+      function parseControlFileOptions() {
+        try {
+
+          const { when, name, version } = currentControlRawData;
+          if (name !== ThisPackage.name) {
+            return {
+              status: 'error' as 'error',
+              errorMessage: ` ** ${'Current Control File Error'.red} unknown value for ${'name'.blue}, expected '${ThisPackage.name.green} got '${name.red}' [${controlFilename.gray}]`,
+            }
+          }
+
+          const { packagesLinked } = currentControlRawData;
+
+          // const installedPackages
+
+          return {
+            status: 'good' as 'good',
+            options: {
+              installedPackages: packagesToLink,
+            },
+          }
+        } catch (err) {
+          return {
+            status: 'error' as 'error',
+            errorObject: err,
+            errorMessage: ` ** ${'Error parsing current control file'.red} ${controlFilename.gray}`,
+          }
+        }
+      }
+      const controlOptionsParsed = parseControlFileOptions();
+      if (controlOptionsParsed.status === 'good') {
+        controlOptionsParsed.options
+      } else {
+        controlOptionsParsed.errorMessage;
       }
 
       async function linkModuleAsync(info: TPackageToRemap): Promise<TPackageMapped> {
@@ -430,12 +476,58 @@ ${'-'.repeat(titleLineLength).green}
           absolutePackageDestinationPath, relativeSourcePath } = info;
 
         const messages = buildMessagesCore();
-        const core: TPackageMappedCore = { ...info, messages, }
+        const core: TPackageMappedCore = {
+          ...info, messages,
+          sourceValidation: {
+            status: 'source-not-checked',
+          }
+        }
 
         messages.info(ch.white(`${'Symlink'.white}:  ${fullPackageName.yellow} -> ${relativeSourcePath.clean.gray}`));
+
+        if (validateSourcesExist) {
+          async function sourceValidator() {
+            try {
+              const statsSource = await getStatInfo.Async(absoluteSourcePath.clean, false);
+              if (statsSource.result === 'stat-returned') {
+                if (statsSource.isDirectory) {
+                  const ret: TPackageSourceValidationGood = {
+                    status: 'source-valid'
+                  }
+                  return ret;
+                } else {
+                  const ret: TPackageSourceValidationError = {
+                    status: 'source-not-directory',
+                    errorMessage: ` -- ${'Source location exists but is not a directory: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; Stat: [${JSON.stringify(statsSource, null, 1).gray}]`,
+                  }
+                  return ret;
+                }
+              } else if (statsSource.result === 'not-found') {
+                const ret: TPackageSourceValidationError = {
+                  status: 'source-not-found',
+                  errorMessage: ` -- ${'Source location was not found: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]`,
+                }
+                return ret;
+              } else {
+                const ret: TPackageSourceValidationError = {
+                  status: 'source-stat-error',
+                  errorMessage: ` -- ${'Other error from getStatInfo: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; Err: [${ch.gray(statsSource.errorObject)}]`,
+                }
+                return ret;
+              }
+            } catch (err) {
+              const ret: TPackageSourceValidation = {
+                status: 'source-unhandled-error',
+                errorMessage: ` -- ${'Unhandled error validating source: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; err: [${ch.gray(err)}]`,
+              }
+              return ret;
+            }
+          }
+          core.sourceValidation = await sourceValidator();
+        }
         // messages.trace(ch.gray(` -- absolutePackageInstallPath: [${absolutePackageInstallPath.gray}] allowLinksInPackageInstallPath: [${allowLinksInPackageInstallPath ? 'true'.red : 'false'.yellow}] DependantPackages: ${dependantPackages}`))
         try {
-          const stats = await getStatInfo.Async(absolutePackageDestinationPath.clean, true)
+          const stats = await getStatInfo.Async(absolutePackageDestinationPath.clean, false)
 
           async function createSymLink(operationStatus: 'mapped-recreate' | 'mapped-fresh', operationDescription: string) {
             messages.info(ch.gray(` -- ${'linking'.green} ${fullPackageName.yellow} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green}' [${absoluteSourcePath.clean.gray}] to '${path.resolve(moduleTarget, fullPackageName).green}' [${absolutePackageDestinationPath.clean.gray}]`))
@@ -461,8 +553,37 @@ ${'-'.repeat(titleLineLength).green}
 
           if (stats.result === 'stat-returned') {
             if (stats.isSymbolicLink) {
-              messages.trace(ch.gray(` -- install path ${'already a symlink'.blue}:  ${'will check target'.yellow}: expectedTarget: [${relativeLinkToSourcePath.clean.white}]`));
+              messages.trace(ch.gray(` -- install path ${'already a symlink'.blue}, ${'will check expected target'.yellow}: [${relativeLinkToSourcePath.clean.white}]`));
               try {
+                const { sourceValidation } = core;
+                switch (sourceValidation.status) {
+                  case 'source-valid':
+                  case 'source-not-checked':
+                    break;
+                  default:
+                    {
+                      messages.trace(ch.gray(` -- removing target ${sourceValidation.status.red}, please validate source exists relative at: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]`));
+                      try {
+                        const resDel = await fs.removeAsync(absolutePackageDestinationPath.clean);
+                        const ret: TPackageMappedError = {
+                          status: 'error',
+                          statusSub: sourceValidation.status,
+                          errorMessage: sourceValidation.errorMessage,
+                          ...core,
+                        };
+                        return ret;
+                      } catch (err) {
+                        const ret: TPackageMappedError = {
+                          status: 'error',
+                          statusSub: 'removing-invalid-source',
+                          errorMessage: ` -- ${'Error removing invalid source at: '.red} ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; Err: ${ch.gray(err)}`,
+                          ...core,
+                        };
+                        return ret;
+                      }
+                    }
+                }
+
                 const res = await fs.readlinkAsync(absolutePackageDestinationPath.clean)
                 const existingLinkTarget = cleanPathObj(res);
 
@@ -494,7 +615,7 @@ ${'-'.repeat(titleLineLength).green}
 
                   messages.trace(ch.gray(` -- install target ${'does NOT match'.yellow}, will rebuild symlink.  existingTarget: ${existingLinkTarget.clean.white}, expectedTarget: ${relativeLinkToSourcePath.clean.white}`));
                   try {
-                    const resDel = await del(absolutePackageDestinationPath.clean);
+                    const resDel = await fs.removeAsync(absolutePackageDestinationPath.clean);
 
                     return await createSymLink('mapped-recreate', 'recreate'.red);
                   } catch (err) {
@@ -549,18 +670,41 @@ ${'-'.repeat(titleLineLength).green}
         }
       }
 
-      const res = await Promise.all(_.values(symlinkPackagesToRemap).map(val => linkModuleAsync(val)))
+      const res = await Promise.all(packagesToLink.map(val => linkModuleAsync(val)))
+
+      const packagesLinked: TPackageMapped[] = [];
+      const packagesCompleted = {
+        linked: res.filter(p => p.status !== 'error'),
+        error: res.filter(p => p.status === 'error'),
+      };
 
       res.forEach(p => printMessages(p));
 
       GlobalLogger.info('');
-      GlobalLogger.warn(`Installed ${ch.green(symlinkPackagesToRemapKeys.length)} symlinks`);
+      {
+        const { linked, error, } = packagesCompleted;
+        if (linked.length > 0) {
+          GlobalLogger.warn(`Linked ${ch.green(linked.length)} packages.`);
+        }
+        if (error.length > 0) {
+          GlobalLogger.error(`${'Failed'.red} to link ${ch.green(error.length)} packages.`);
+        }
 
-      const mappedPackagesKeys = Object.keys(mappedPackages);
+        const errors: TInstallPathError[] = res.filter(p => p.status === 'error') as any;
+        if (errors.length > 0) {
+          const msg = (`${'***'.yellow} linkModules failed for [${errors.length.toString().red}]:
+        ${errors.map(p => p.errorMessage).join('  \n')}`);
+          GlobalLogger.error(msg);
+        }
 
+        if (linked.length === 0 && error.length === 0) {
+          GlobalLogger.warn(`No packaged were linked!`.yellow);
+        }
+      }
       type IControlFileOptions = typeof newControlFileOptions;
 
       const newControlFileOptions = {
+        when: new Date().toString(),
         ...ThisPackage,
 
         caseSensitive,
@@ -593,28 +737,26 @@ ${'-'.repeat(titleLineLength).green}
 
         rebuild,
 
-        mappedPackagesCount: mappedPackagesKeys.length,
-        mappedPackages,
+        packagesCompleted,
 
-        symlinkPackagesToRemapCount: symlinkPackagesToRemapKeys.length,
-        symlinkPackagesToRemap,
+        packagesLinked,
 
-        badSymlinkPackagesToRemapCount: badSymlinkPackagesToRemapKeys.length,
-        badSymlinkPackagesToRemap,
+        packagesToLinkCount: packagesToLink.length,
+        packagesToLink,
+
+        packagesThatCantLinkCount: packagesThatCantLink.length,
+        packagesThatCantLink,
       }
 
-      fs.writeJSONSync(absoluteControlFilePath, newControlFileOptions, { spaces: 2 });
-
-      const errros: TInstallPathError[] = res.filter(p => p.status === 'error') as any;
-      if (errros.length > 0) {
-        const msg = (`${'***'.yellow} linkModules failed for [${errros.length.toString().red}]:
-        ${errros.map(p => p.errorMessage).join('  \n')}`);
-        GlobalLogger.error(msg);
+      try {
+        await fs.writeJSONAsync(absoluteControlFilePath, newControlFileOptions, { spaces: 2 });
+      } catch (err) {
+        GlobalLogger.error(`${'Error writing control file'.red}: ${absoluteControlFilePath}; err: ${ch.gray(err)}`)
       }
       return newControlFileOptions;
 
     } catch (err) {
-      GlobalLogger.error(`${'Unhandled Error occurred'.red}:  ${err}`);
+      GlobalLogger.error(`${'Unhandled Error occurred'.red}: ${ch.gray(err)}`);
       throw err;
     }
   })
