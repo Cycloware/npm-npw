@@ -15,6 +15,7 @@
     "inlineSourceMap": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "allowJs": false
+    "allowJs": false,
+    "importHelpers": true
   }
 }

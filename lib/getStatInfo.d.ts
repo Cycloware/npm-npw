@@ -1,13 +1,12 @@
 /// <reference types="node" />
-/// <reference types="bluebird" />
 import 'colors';
-import * as Promise from 'bluebird';
 import fs = require('fs-extra-promise');
 export declare namespace getStatInfo {
     export import Stats = fs.Stats;
     type TResultError = {
         result: 'not-found' | 'error';
         path: string;
+        message: string;
         errorObject: any;
     };
     type TResultGood = {
