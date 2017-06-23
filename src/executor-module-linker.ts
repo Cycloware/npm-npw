@@ -3,7 +3,7 @@ import * as Promise from 'bluebird';
 
 import * as _ from 'lodash';
 
-import chalk = require('chalk');
+import ch = require('chalk');
 
 import { DBlastMode, spawnerNpm, spawnerLines, spawnerBlast } from './npm/spawner';
 
@@ -31,7 +31,7 @@ function getStringComparer(caseSensitive: boolean) { return caseSensitive ? comp
 type TPackageToRemapHeader = { fullPackageName: string, rawValue: string };
 type TPackageToRemap = TPackageToRemapHeader & {
   packageName: string, splitPackageName: string[], packageDestinationInModules: TPath, relativeSourcePath: TPath, absoluteSourcePath: TPath,
-  ensurePackageInstallPathPresent: boolean, packageInstallHardFolderPath: string, absolutePackageInstallPath: string,
+  ensurePackageInstallPathPresent: boolean, packageInstallHardFolderPath: string, absolutePackageInstallPath: string, relativePackageInstallPath: string,
   absoluteLinkToSourcePath: TPath, relativeLinkToSourcePath: TPath, absolutePackageDestinationPath: TPath, linkType: string,
 };
 
@@ -67,7 +67,7 @@ function buildLogger(levels: KLogger[]) {
   return ret;
 }
 
-export let GlobalLogger: IMessageLogger = buildLogger(['warn', 'error']);
+export let GlobalLogger: IMessageLogger = buildLogger(['info', 'warn', 'error']);
 
 interface IMessagesCore extends IMessageLogger {
   readonly items: { type: KLogger, msg: string }[];
@@ -147,18 +147,18 @@ export namespace ChangeDirectory {
   function performDirectoryChange(_absoluteOldCurrentDirectory: string, _absoluteNewCurrentDirectory: string, _relativeNewCurrentDirectory: string, log: IMessageLogger) {
     try {
       const relativeOldWorkingDir = path.relative(_absoluteNewCurrentDirectory, _absoluteOldCurrentDirectory);
-      log.trace(`Changing current directory back to: ${relativeOldWorkingDir.green} [${_absoluteNewCurrentDirectory.gray}]`);
+      log.trace(` + Changing Current Directory back: ${relativeOldWorkingDir.green} [${_absoluteNewCurrentDirectory.gray}]`);
       process.chdir(_absoluteOldCurrentDirectory);
     } catch (err) {
-      log.error(`Error changing working directory back to: ${_absoluteOldCurrentDirectory.red} [${_absoluteNewCurrentDirectory.gray}]`)
+      log.error(` + Error Changing Current Directory back: ${_absoluteOldCurrentDirectory.red} [${_absoluteNewCurrentDirectory.gray}]`)
       throw err;
     }
   }
 
   export function Async<TResult>(args: {
-    absoluteNewCurrentDirectory: string, action: (state?: TState) => Promise<TResult>,
+    absoluteNewCurrentDirectory: string,
     log?: IMessageLogger, currentDirectoryOverride?: string, caseSensitive?: boolean
-  }): Promise<TResult> {
+  }, action: (state?: TState) => Promise<TResult>): Promise<TResult> {
 
     let directoryWasChanged = false;
     let _absoluteOldCurrentDirectory: string;
@@ -166,7 +166,7 @@ export namespace ChangeDirectory {
     let _relativeNewCurrentDirectory: string;
     let log = GlobalLogger;
     return new Promise<TResult>((resolve, reject) => {
-      const { absoluteNewCurrentDirectory, currentDirectoryOverride = process.cwd(), action,
+      const { absoluteNewCurrentDirectory, currentDirectoryOverride = process.cwd(),
         caseSensitive = true } = args;
 
       if (args.log) {
@@ -181,7 +181,7 @@ export namespace ChangeDirectory {
       const directoryShouldChange = !comparer(absoluteNewCurrentDirectory, absoluteOldCurrentDirectory);
       const relativeNewCurrentDirectory = path.relative(absoluteOldCurrentDirectory, absoluteNewCurrentDirectory);
       if (directoryShouldChange) {
-        log.trace(`Changed current directory to: ${relativeNewCurrentDirectory.green} [${absoluteNewCurrentDirectory.gray}]`);
+        log.trace(` + Changing Current Directory: ${relativeNewCurrentDirectory.green} [${absoluteNewCurrentDirectory.gray}]`);
         process.chdir(absoluteNewCurrentDirectory);
         directoryWasChanged = true;
       }
@@ -214,7 +214,14 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
       argsIn = argsIn.concat(process.argv.slice(2))
     }
   }
-
+  {
+    const titleLine = `${'Cycloware'.blue} ${'Module Linker'.green.bold.italic}`;
+    const titleLineLength = ch.stripColor(titleLine).length;
+    GlobalLogger.info(
+      `${titleLine}    
+${'-'.repeat(titleLineLength).green}
+`)
+  }
   const baseDir = process.cwd();
   const absoluteBaseDir = path.resolve(baseDir);
 
@@ -224,38 +231,6 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   let rebuild = false;
   let allowLinksInPackageInstallPath = false;
   let caseSensitive = false;
-
-  let pathLib = 'unknown';
-  let pathI = path;
-  let pathSeperatorBad = '\\';
-  let pathSeperatorGood = '/';
-  let linkType = 'dir';
-  if (pathMod.win32 === path) {
-    pathLib = 'WIN32';
-    pathI = pathMod.win32;
-
-    const t = pathSeperatorBad;
-    pathSeperatorBad = pathSeperatorGood;
-    pathSeperatorGood = t;
-
-    GlobalLogger.info(`${pathLib.yellow} file paths`);
-  } else if (pathMod.posix === path) {
-    pathLib = 'POSIX';
-    pathI = pathMod.posix;
-    GlobalLogger.info(`${pathLib.yellow} file paths`);
-  } else {
-    GlobalLogger.info(`${pathLib.red} file paths`);
-  }
-
-  function cleanPath(pathIn: string) {
-    return pathIn.split(pathSeperatorBad).join(pathSeperatorGood);
-  }
-  function cleanPathObj(pathIn: string): TPath {
-    return {
-      raw: pathIn,
-      clean: cleanPath(pathIn),
-    }
-  }
 
   const packageFilename = 'package.json';
 
@@ -270,11 +245,11 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     .command(['--rebuild'], () => {
       rebuild = true;
     })
-    .command(['--trace', '--verbose-trace'], () => {
-      GlobalLogger = buildLogger(['trace', 'info', 'warn', 'error'])
+    .command(['--quiet'], () => {
+      GlobalLogger = buildLogger(['warn', 'error'])
     })
     .command(['--verbose'], () => {
-      GlobalLogger = buildLogger(['info', 'warn', 'error'])
+      GlobalLogger = buildLogger(['trace', 'info', 'warn', 'error'])
     })
     .command(['--ignore-case'], () => {
       caseSensitive = false;
@@ -282,17 +257,49 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
   const commandsResult = commands.processCommands(argsIn);
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
 
-  const compareStrings = getStringComparer(caseSensitive)
-  GlobalLogger.info(`Case-Sensitive Paths: ${caseSensitive ? 'true'.red : 'false'.green}`)
+  let pathLib = 'unknown';
+  let pathI = path;
+  let pathSeperatorBad = '\\';
+  let pathSeperatorGood = '/';
+  let linkType = 'dir';
+  if (pathMod.win32 === path) {
+    pathLib = 'WIN32';
+    pathI = pathMod.win32;
 
+    const t = pathSeperatorBad;
+    pathSeperatorBad = pathSeperatorGood;
+    pathSeperatorGood = t;
+
+    GlobalLogger.trace(` + File paths: ${pathLib.blue}`);
+  } else if (pathMod.posix === path) {
+    pathLib = 'POSIX';
+    pathI = pathMod.posix;
+    GlobalLogger.trace(` + File paths: ${pathLib.blue}`);
+  } else {
+    GlobalLogger.trace(` + File paths: ${pathLib.red}`);
+  }
+
+  function cleanPath(pathIn: string) {
+    return pathIn.split(pathSeperatorBad).join(pathSeperatorGood);
+  }
+  function cleanPathObj(pathIn: string): TPath {
+    return {
+      raw: pathIn,
+      clean: cleanPath(pathIn),
+    }
+  }
+
+  const compareStrings = getStringComparer(caseSensitive)
+  GlobalLogger.trace(` + Case-Sensitive Paths: ${caseSensitive ? 'true'.red : 'false'.blue}`)
 
   const absolutePackagePath = path.resolve(absoluteBaseDir, packageFilename);
+
   function getPackageInfo(packagePath: string): { success: true, packageInfo: any } | { success: false, err: any, message: string } {
     try {
       return { success: true, packageInfo: require(packagePath) };
     }
     catch (err) {
-      return { success: false, err, message: `Error loading package.json '${packagePath.gray}'; err: ${chalk.gray(err)}` }
+      return { success: false, err, message: `Error loading package.json '${packagePath.gray}'; err: ${ch.gray(err)}` }
     }
   }
 
@@ -327,11 +334,12 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     }
   }
   const absoluteModuleDir = path.resolve(absoluteBaseDir, moduleTarget);
+  const relativeModuleDir = path.relative(absoluteBaseDir, absoluteModuleDir);
   const currentDirectory = process.cwd();
-  GlobalLogger.trace(`moduleTarget: ${moduleTarget.green}`)
-  GlobalLogger.trace(`absoluteBaseDir: ${absoluteBaseDir.green}`);
-  GlobalLogger.trace(`absoluteModuleDir: ${absoluteModuleDir.green}`);
-  GlobalLogger.trace(`currentDirectory: ${currentDirectory.green}`);
+  GlobalLogger.trace(` + moduleTarget: ${moduleTarget.blue}`)
+  GlobalLogger.trace(` + absoluteBaseDir: ${absoluteBaseDir.blue}`);
+  GlobalLogger.trace(` + absoluteModuleDir: ${absoluteModuleDir.blue}`);
+  GlobalLogger.trace(` + currentDirectory: ${currentDirectory.blue}`);
 
   // splitPackageName: string[], packageName: string, fullPackageName: string, absolutePackageInstallPath: string,
   //       relativeSourcePath: TPackagePath, absolutePackageDestinationPath: TPackagePath,
@@ -356,6 +364,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         absolutePackageInstallPath = path.resolve(absolutePackageInstallPath, packageInstallHardFolderPath);
       }
 
+      const relativePackageInstallPath = path.relative(absoluteBaseDir, absolutePackageInstallPath);
       const packageDestinationInModules = cleanPathObj(path.join(moduleTarget, fullPackageName));
       const absolutePackageDestinationPath = cleanPathObj(path.resolve(absolutePackageInstallPath, packageName));
       const relativeLinkToSourcePath = cleanPathObj(path.relative(absolutePackageInstallPath, absoluteSourcePath.raw));
@@ -371,6 +380,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         ensurePackageInstallPathPresent,
         packageInstallHardFolderPath,
         absolutePackageInstallPath,
+        relativePackageInstallPath,
         linkType,
         relativeLinkToSourcePath,
         absoluteLinkToSourcePath: absoluteSourcePath,
@@ -386,15 +396,15 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
 
   const badSymlinkPackagesToRemapKeys = Object.keys(badSymlinkPackagesToRemap);
   if (badSymlinkPackagesToRemapKeys.length > 0) {
-    GlobalLogger.warn(`${'BAD SymlinkPackagesToRemap'.red} ${`package paths must start with '${filePrefix.green}'`}: ${_.values(badSymlinkPackagesToRemap).map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
+    GlobalLogger.warn(` + ${'BAD SymlinkPackagesToRemap'.red} ${`package paths must start with '${filePrefix.green}'`}: ${_.values(badSymlinkPackagesToRemap).map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
   }
 
   const symlinkPackagesToRemapKeys = Object.keys(symlinkPackagesToRemap);
   if (symlinkPackagesToRemapKeys.length > 0) {
-    GlobalLogger.trace(`${'symlinkPackagesToRemap'.blue} [${symlinkPackagesToRemapKeys.length}]: ${_.values(symlinkPackagesToRemap).map(x => `${x.packageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
+    GlobalLogger.trace(ch.gray(`${' + symlinkPackagesToRemap'.white} [${ch.white(symlinkPackagesToRemapKeys.length)}]: ${_.values(symlinkPackagesToRemap).map(x => `${x.fullPackageName.yellow} [${x.rawValue.white}]`).join(', ')}`));
   }
   else {
-    GlobalLogger.warn(`No ${'symlinkPackagesToRemap'.yellow} to map.`);
+    GlobalLogger.warn(` + No ${'symlinkPackagesToRemap'.yellow} to map.`);
     return Promise.resolve(0);
   }
   const packagesNeedingInstallPathPresent = _.values(symlinkPackagesToRemap).filter(x => x.ensurePackageInstallPathPresent);
@@ -402,19 +412,23 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
 
   type TPackageInstallPath = {
     name: string,
+    type: string,
     absolutePackageInstallPath: string;
+    relativePackageInstallPath: string;
     dependantPackages: string[];
   };
 
-  const moduleDirInstallInfo = { name: 'root module dir', absolutePackageInstallPath: absoluteModuleDir, dependantPackages: symlinkPackagesToRemapKeys };
+  const moduleDirInstallInfo = { name: moduleTarget, type: 'Link Module Directory', absolutePackageInstallPath: absoluteModuleDir, relativePackageInstallPath: relativeModuleDir, dependantPackages: symlinkPackagesToRemapKeys };
 
   const ensureInstallPathsPresent: TPackageInstallPath[] =
     _.map(groupedPackagesNeedingInstallPath, (val, key) => {
       const fV = val[0];
       const packages = val.map(p => p.fullPackageName);
       return {
-        name: `sub-module dir '${key.yellow}'`,
+        name: key.yellow,
+        type: 'Sub Module Directory',
         absolutePackageInstallPath: fV.absolutePackageInstallPath,
+        relativePackageInstallPath: fV.relativePackageInstallPath,
         dependantPackages: packages,
       }
     });
@@ -434,11 +448,12 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     const messages = buildMessagesCore();
     const core: TInstallPathCore = { install, messages, }
 
-    const { absolutePackageInstallPath, dependantPackages, name } = install;
-    messages.trace(`ensureInstallPathPresent: ${'getStatInfo.Async: '.green} ${name.yellow}; absolutePackageInstallPath: [${absolutePackageInstallPath.gray}] allowLinksInPackageInstallPath: [${allowLinksInPackageInstallPath ? 'true'.red : 'false'.yellow}] DependantPackages: ${dependantPackages.toString().gray}`)
+    const { absolutePackageInstallPath, relativePackageInstallPath, dependantPackages, name, type } = install;
+    messages.info(ch.gray(`${'Ensure Exists'.white}: ${relativePackageInstallPath.yellow} [${type}]`));
+    messages.trace(ch.gray(` -- absolutePackageInstallPath: [${absolutePackageInstallPath.gray}] allowLinksInPackageInstallPath: [${allowLinksInPackageInstallPath ? 'true'.red : 'false'.yellow}] DependantPackages: ${dependantPackages}`))
     return getStatInfo.Async(absolutePackageInstallPath, allowLinksInPackageInstallPath).then(stats => {
       if (stats.result === 'stat-returned') {
-        messages.info(`${'Install path already exists for: '.green} ${name.yellow}; DependantPackages: ${dependantPackages.toString().gray}`)
+        messages.trace(ch.gray(` -- ${'already exists'.green}: ${relativePackageInstallPath.yellow}`))
         if (stats.isDirectory) {
           const ret: TInstallPathGood = {
             status: 'exists',
@@ -449,15 +464,15 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         else {
           const ret: TInstallPathError = {
             status: 'error',
-            errorMessage: `${'Cannot use install path for: '.red} ${name.yellow} because it's ${'not a directory'.red}; stats: ${JSON.stringify(stats, null, 1).gray} DependantPackages: ${dependantPackages.toString().gray}`,
+            errorMessage: ch.gray(` -- ${`cannot use install path ${relativePackageInstallPath.yellow} because it is NOT a directory`}; stats: ${JSON.stringify(stats, null, 1).gray}; absolutePackageInstallPath: ${absolutePackageInstallPath.white}  DependantPackages: ${dependantPackages.toString().gray}`),
             ...core,
           };
           return ret;
         }
       } else if (stats.result === 'not-found') {
-        messages.trace(`${'Making install path for: '.green} ${name.yellow}; DependantPackages: ${dependantPackages.toString().gray}`)
+        messages.trace(ch.gray(` -- ${'creating directory'.blue}: ${relativePackageInstallPath.yellow}`))
         return fs.mkdirAsync(absolutePackageInstallPath).then(() => {
-          messages.info(`${'Made install path for: '.green} ${name.yellow}`)
+          messages.trace(ch.gray(` -- ${'created directory'.green}: ${relativePackageInstallPath.yellow}`))
           return {
             status: 'create',
             ...core,
@@ -465,7 +480,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         }).catch(err => {
           const ret: TInstallPathError = {
             status: 'error',
-            errorMessage: `${'Error making install path for: '.red} ${name.yellow}; DependantPackages: ${dependantPackages.toString().gray}`,
+            errorMessage: ch.gray(` -- ${'error creating directory'.red}: ${relativePackageInstallPath.yellow}; err: ${ch.gray(err)}; DependantPackages: ${dependantPackages.toString().gray}`),
             ...core,
           };
           return ret;
@@ -473,7 +488,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
       } else {
         const ret: TInstallPathError = {
           status: 'error',
-          errorMessage: `${'Other error while trying to make install path for: '.red} ${name.yellow}; err: ${chalk.gray(stats.errorObject)}; DependantPackages: ${dependantPackages.toString().gray}`,
+          errorMessage: `${'Other error while trying to make install path for: '.red} ${name.yellow}; err: ${ch.gray(stats.errorObject)}; DependantPackages: ${dependantPackages.toString().gray}`,
           ...core,
         };
         return ret;
@@ -488,20 +503,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         const { items } = messages;
         if (items && items.length > 0) {
           for (const item of items) {
-            switch (item.type) {
-              case 'error':
-                GlobalLogger.error(item.msg);
-                break;
-              case 'warn':
-                GlobalLogger.warn(item.msg);
-                break;
-              case 'info':
-                GlobalLogger.info(item.msg);
-              case 'trace':
-              default:
-                GlobalLogger.trace(item.msg);
-                break;
-            }
+            GlobalLogger[item.type](item.msg);
           }
         }
       }
@@ -531,7 +533,11 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
     return res;
   }).then(res => {
 
-    function sad() {
+    GlobalLogger.info('');
+
+    return ChangeDirectory.Async({
+      absoluteNewCurrentDirectory: absoluteModuleDir
+    }, (state) => {
       try {
 
         const absoluteControlFilePath = path.resolve(absoluteModuleDir, controlFilename);
@@ -541,7 +547,9 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
             currentControlFileOptions = fs.readJsonSync(absoluteControlFilePath);
           }
         } catch (err) {
-          GlobalLogger.warn(`${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${chalk.gray(err)}`)
+          if (err.code !== 'ENOENT') {
+            GlobalLogger.warn(` + ${'FAILED:  '.red} to open control file '${controlFilename.yellow}' at '${absoluteModuleDir.gray}.  Err: ${ch.gray(err)}`);
+          }
         }
 
         function linkModuleAsync(info: TPackageToRemap): Promise<TPackageMapped> {
@@ -552,14 +560,16 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
           const messages = buildMessagesCore();
           const core: TPackageMappedCore = { ...info, messages, }
 
+          messages.info(ch.white(`${'Symlink'.white}:  ${fullPackageName.yellow} -> ${relativeSourcePath.clean.gray}`));
+          // messages.trace(ch.gray(` -- absolutePackageInstallPath: [${absolutePackageInstallPath.gray}] allowLinksInPackageInstallPath: [${allowLinksInPackageInstallPath ? 'true'.red : 'false'.yellow}] DependantPackages: ${dependantPackages}`))
           return getStatInfo.Async(absolutePackageDestinationPath.clean, true).then(stats => {
 
             function createSymLink(operationStatus: 'mapped-recreate' | 'mapped-fresh', operationDescription: string) {
-              messages.trace(`Linking ${fullPackageName.yellow} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green}' [${absoluteSourcePath.clean.gray}] to '${path.resolve(moduleTarget, fullPackageName).green}' [${absolutePackageDestinationPath.clean.gray}]`)
+              messages.info(ch.gray(` -- ${'linking'.green} ${fullPackageName.yellow} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green}' [${absoluteSourcePath.clean.gray}] to '${path.resolve(moduleTarget, fullPackageName).green}' [${absolutePackageDestinationPath.clean.gray}]`))
 
               return fs.symlinkAsync(relativeLinkToSourcePath.clean, absolutePackageDestinationPath.clean, linkType)
                 .then(() => {
-                  messages.info(`${'Linked:  '.green} ${fullPackageName.yellow} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green} [${absoluteSourcePath.clean.gray}]'`);
+                  messages.info(ch.gray(` -- ${'LINKED'.green}'`));
                   const ret: TPackageMappedGood = {
                     status: operationStatus,
                     ...core,
@@ -570,7 +580,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
                   const ret: TPackageMappedError = {
                     status: 'error',
                     statusSub: 'creating-symlink',
-                    errorMessage: `${'Error creating symlink: '.red} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green} [${absoluteSourcePath.clean.gray}]; Err: ${chalk.gray(err)}`,
+                    errorMessage: `${' -- Error creating symlink: '.red} with '${operationDescription}' as '${linkType.blue}' from '${relativeSourcePath.clean.green} [${absoluteSourcePath.clean.gray}]; Err: ${ch.gray(err)}`,
                     ...core,
                   };
                   return ret;
@@ -579,7 +589,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
 
             if (stats.result === 'stat-returned') {
               if (stats.isSymbolicLink) {
-                messages.trace(`${'Install path already a symlink for: '.green} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]`);
+                messages.trace(ch.gray(` -- install path ${'already a symlink'.blue}:  ${'will check target'.yellow}: expectedTarget: [${relativeLinkToSourcePath.clean.white}]`));
                 return fs.readlinkAsync(absolutePackageDestinationPath.clean)
                   .then(res => cleanPathObj(res))
                   .then(existingLinkTarget => {
@@ -598,7 +608,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
                     };
 
                     if (existingMatch) {
-                      messages.trace(`${'Existing symlink same:  '.green} existingLinkTarget: ${existingLinkTarget.clean.gray}; relativeLinkToSourcePath: ${relativeLinkToSourcePath.clean.gray}`);
+                      messages.trace(ch.gray(` -- install target ${'MATCHES'.green}`));
                       const ret: TPackageMappedGood = {
                         status: 'exists',
                         ...core,
@@ -606,17 +616,17 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
                       return ret;
                     } else {
                       if (existingDiffersByCase) {
-                        messages.warn(`${'Existing symlink only differs by case'.red} (to ignore case use ${'--ignore-case'.blue})  existingLinkTarget: ${existingLinkTarget.clean.yellow}; relativeLinkToSourcePath: ${relativeLinkToSourcePath.clean.yellow}`);
+                        messages.warn(ch.gray(` -- install target ${'only differs by CASE'.red} (to ignore case use ${'--ignore-case'.blue})  existingLinkTarget: ${existingLinkTarget.clean.yellow}; relativeLinkToSourcePath: ${relativeLinkToSourcePath.clean.yellow}`));
                       }
 
-                      messages.trace(`${'Removing existing symlink for:  '.yellow} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]`);
+                      messages.trace(ch.gray(` -- install target ${'does NOT match'.yellow}, will rebuild symlink.  existingTarget: ${existingLinkTarget.clean.white}, expectedTarget: ${relativeLinkToSourcePath.clean.white}`));
                       return Promise.resolve(del(absolutePackageDestinationPath.clean))
                         .then(() => createSymLink('mapped-recreate', 'recreate'.red))
                         .catch(err => {
                           const ret: TPackageMappedError = {
                             status: 'error',
                             statusSub: 'remove-existing-symlink',
-                            errorMessage: `${'Error removing existing symlink for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${chalk.gray(err)}`,
+                            errorMessage: ` -- ${'Error removing existing symlink for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${ch.gray(err)}`,
                             ...core,
                           };
                           return ret;
@@ -627,7 +637,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
                     const ret: TPackageMappedError = {
                       status: 'error',
                       statusSub: 'read-existing-symlink',
-                      errorMessage: `${'Error readlinkAsync for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${chalk.gray(err)}`,
+                      errorMessage: ` -- ${'Error readlinkAsync for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${ch.gray(err)}`,
                       ...core,
                     };
                     return ret;
@@ -637,7 +647,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
                 const ret: TPackageMappedError = {
                   status: 'error',
                   statusSub: 'exist-not-symlink',
-                  errorMessage: `${'Target location exists but is not a symlink: '.red} ${fullPackageName.yellow}; Location [${absolutePackageDestinationPath.clean.gray}]; Stat: [${JSON.stringify(stats, null, 1).gray}]`,
+                  errorMessage: ` -- ${'Target location exists but is not a symlink: '.red} ${fullPackageName.yellow}; Location [${absolutePackageDestinationPath.clean.gray}]; Stat: [${JSON.stringify(stats, null, 1).gray}]`,
                   ...core,
                 };
                 return ret;
@@ -648,7 +658,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
               const ret: TPackageMappedError = {
                 status: 'error',
                 statusSub: 'other',
-                errorMessage: `${'Other error from getStatInfo: '.red} ${fullPackageName.yellow}; Location [${absolutePackageDestinationPath.clean.gray}]; Err: [${chalk.gray(stats.errorObject)}]`,
+                errorMessage: ` -- ${'Other error from getStatInfo: '.red} ${fullPackageName.yellow}; Location [${absolutePackageDestinationPath.clean.gray}]; Err: [${ch.gray(stats.errorObject)}]`,
                 ...core,
               };
               return ret;
@@ -658,7 +668,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
               const ret: TPackageMappedError = {
                 status: 'error',
                 statusSub: 'get-stat-info',
-                errorMessage: `${'Error getStatInfo for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${chalk.gray(err)}`,
+                errorMessage: ` -- ${'Error getStatInfo for: '.red} ${fullPackageName.yellow} [${absolutePackageDestinationPath.clean.gray}]; Err: ${ch.gray(err)}`,
                 ...core,
               };
               return ret;
@@ -669,7 +679,8 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         return Promise.all(promisesToMap).then(res => {
           res.forEach(p => printMessages(p));
 
-          GlobalLogger.info(`All done, creating [${symlinkPackagesToRemapKeys.length.toString().green}] symlinks`);
+          GlobalLogger.info('');
+          GlobalLogger.warn(`Installed ${ch.green(symlinkPackagesToRemapKeys.length)} symlinks`);
 
           const mappedPackagesKeys = Object.keys(mappedPackages);
 
@@ -697,6 +708,7 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
             allowLinksInPackageInstallPath,
 
             absoluteModuleDir,
+            relativeModuleDir,
             moduleTarget,
             moduleTargetSource,
 
@@ -732,10 +744,6 @@ export function moduleLinker(exec: { commandText: string, argsIn?: string[], arg
         GlobalLogger.error(`${'Error occurred'.red}:  ${err}`);
         throw err;
       }
-    }
-    return ChangeDirectory.Async({
-      absoluteNewCurrentDirectory: absoluteModuleDir,
-      action: (state) => sad(),
     })
   })
 

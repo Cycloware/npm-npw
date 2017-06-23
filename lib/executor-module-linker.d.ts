@@ -1,13 +1,11 @@
 /// <reference types="bluebird" />
 import 'colors';
 import * as Promise from 'bluebird';
-export interface IMessageLogger {
-    trace(msg: string): this;
-    info(msg: string): this;
-    warn(msg: string): this;
-    error(msg: string): this;
-}
-export declare const NullLogger: IMessageLogger;
+export declare type IMessageLogger = {
+    [P in KLogger]: (msg: string) => void;
+};
+export declare type KLogger = 'trace' | 'info' | 'warn' | 'error';
+export declare let GlobalLogger: IMessageLogger;
 export declare namespace ChangeDirectory {
     type TState = {
         currentDirectory: {
@@ -20,11 +18,10 @@ export declare namespace ChangeDirectory {
     };
     function Async<TResult>(args: {
         absoluteNewCurrentDirectory: string;
-        action: (state?: TState) => Promise<TResult>;
         log?: IMessageLogger;
         currentDirectoryOverride?: string;
         caseSensitive?: boolean;
-    }): Promise<TResult>;
+    }, action: (state?: TState) => Promise<TResult>): Promise<TResult>;
 }
 export declare function moduleLinker(exec: {
     commandText: string;
