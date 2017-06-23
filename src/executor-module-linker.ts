@@ -25,10 +25,7 @@ import { GlobalLogger, IMessageLogger, changeGlobalLogger, IMessages, buildMessa
 import { stringComparer } from './stringComparer';
 
 
-const thisPackageInfo = require('../package.json');
-const thisPackageName = thisPackageInfo.name as string;
-const thisPackageVersion = thisPackageInfo.version as string;
-
+import { ThisPackage } from './thisPackage';
 
 
 type TPackageToRemapHeader = { fullPackageName: string, rawValue: string };
@@ -414,8 +411,7 @@ ${'-'.repeat(titleLineLength).green}
 
         type TControlFileOptions = typeof _controlFileOptionsPrototype;
         const _controlFileOptionsPrototype = {
-          package: thisPackageName,
-          version: thisPackageVersion,
+          ...ThisPackage,
 
           caseSensitive,
 
