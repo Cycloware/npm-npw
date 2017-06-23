@@ -1,5 +1,5 @@
 import 'colors';
-import * as Promise from 'bluebird';
+// import * as Promise from 'bluebird';
 
 import * as _ from 'lodash';
 
@@ -16,17 +16,20 @@ const path: typeof pathMod.posix = pathMod;
 import { unquote } from './unquote';
 
 import { CommandBuilder } from './commandBuilder';
+import { ChangeDirectory } from './changeDirectory';
 
 import { getStatInfo } from './getStatInfo';
+
+import { GlobalLogger, IMessageLogger, changeGlobalLogger, IMessages, buildMessagesCore } from './logger';
+
+import { stringComparer } from './stringComparer';
+
 
 const thisPackageInfo = require('../package.json');
 const thisPackageName = thisPackageInfo.name as string;
 const thisPackageVersion = thisPackageInfo.version as string;
 
-function compareStringsSensitive(x: string, y: string) { return x === y };
-function compareStringsInsensitive(x: string, y: string) { return x.toLowerCase() === y.toLowerCase(); }
 
-function getStringComparer(caseSensitive: boolean) { return caseSensitive ? compareStringsSensitive : compareStringsInsensitive; }
 
 type TPackageToRemapHeader = { fullPackageName: string, rawValue: string };
 type TPackageToRemap = TPackageToRemapHeader & {
@@ -35,76 +38,6 @@ type TPackageToRemap = TPackageToRemapHeader & {
   absoluteLinkToSourcePath: TPath, relativeLinkToSourcePath: TPath, absolutePackageDestinationPath: TPath, linkType: string,
 };
 
-// type TMessages = { errorMessage?: string, messages: { info: string[], warn: string[] }, };
-
-export type IMessageLogger = {[P in KLogger]: (msg: string) => void};
-export type KLogger = 'trace' | 'info' | 'warn' | 'error';
-
-const _consoleLoggerAllLevels = {
-  trace(msg: string) {
-    console.info(msg);
-  },
-  info(msg: string) {
-    console.info(msg);
-  },
-  warn(msg: string) {
-    console.warn(msg);
-  },
-  error(msg: string) {
-    console.error(msg);
-  }
-};
-
-const _nullOp = () => { };
-
-function buildLogger(levels: KLogger[]) {
-  const ret = { ..._consoleLoggerAllLevels };
-  for (const prop in ret) {
-    if (levels.indexOf(prop as KLogger) < 0) {
-      ret[prop as KLogger] = _nullOp;
-    }
-  }
-  return ret;
-}
-
-export let GlobalLogger: IMessageLogger = buildLogger(['info', 'warn', 'error']);
-
-interface IMessagesCore extends IMessageLogger {
-  readonly items: { type: KLogger, msg: string }[];
-}
-interface IMessages {
-  messages: IMessagesCore;
-}
-
-interface IMessagesWithError extends IMessages {
-  errorMessage: string;
-}
-interface IMessagesWithPossibleError extends IMessages {
-  errorMessage?: string;
-}
-function buildMessages(): IMessages {
-  return {
-    messages: buildMessagesCore(),
-  }
-}
-function buildMessagesCore(): IMessagesCore {
-  return {
-    items: [],
-
-    trace(msg: string) {
-      this.items.push({ type: 'trace', msg });
-    },
-    info(msg: string) {
-      this.items.push({ type: 'info', msg });
-    },
-    warn(msg: string) {
-      this.items.push({ type: 'warn', msg })
-    },
-    error(msg: string) {
-      this.items.push({ type: 'error', msg })
-    },
-  };
-}
 
 type TPath = { clean: string, raw: string };
 
@@ -124,7 +57,7 @@ type TPackageMappedGood = TPackageMappedCore & {
   status: 'mapped-fresh' | 'exists' | 'mapped-recreate',
 
 }
-type TPackageMappedError = TPackageMappedCore & IMessagesWithError & {
+type TPackageMappedError = TPackageMappedCore & IMessages.WithError & {
   status: 'error',
   statusSub: 'other' | 'exist-not-symlink' | 'read-existing-symlink' |
   'remove-existing-symlink' | 'get-stat-info' | 'creating-symlink',
@@ -132,77 +65,6 @@ type TPackageMappedError = TPackageMappedCore & IMessagesWithError & {
 
 type TPackageMapped = (TPackageMappedGood | TPackageMappedError);
 
-export namespace ChangeDirectory {
-
-  export type TState = {
-    currentDirectory: {
-      old: string,
-      new: string,
-    },
-    changed: boolean,
-    caseSensitive: boolean,
-    relativeNewCurrentDirectory: string,
-  }
-
-  function performDirectoryChange(_absoluteOldCurrentDirectory: string, _absoluteNewCurrentDirectory: string, _relativeNewCurrentDirectory: string, log: IMessageLogger) {
-    try {
-      const relativeOldWorkingDir = path.relative(_absoluteNewCurrentDirectory, _absoluteOldCurrentDirectory);
-      log.trace(` + Changing Current Directory back: ${relativeOldWorkingDir.green} [${_absoluteNewCurrentDirectory.gray}]`);
-      process.chdir(_absoluteOldCurrentDirectory);
-    } catch (err) {
-      log.error(` + Error Changing Current Directory back: ${_absoluteOldCurrentDirectory.red} [${_absoluteNewCurrentDirectory.gray}]`)
-      throw err;
-    }
-  }
-
-  export function Async<TResult>(args: {
-    absoluteNewCurrentDirectory: string,
-    log?: IMessageLogger, currentDirectoryOverride?: string, caseSensitive?: boolean
-  }, action: (state?: TState) => Promise<TResult>): Promise<TResult> {
-
-    let directoryWasChanged = false;
-    let _absoluteOldCurrentDirectory: string;
-    let _absoluteNewCurrentDirectory: string;
-    let _relativeNewCurrentDirectory: string;
-    let log = GlobalLogger;
-    return new Promise<TResult>((resolve, reject) => {
-      const { absoluteNewCurrentDirectory, currentDirectoryOverride = process.cwd(),
-        caseSensitive = true } = args;
-
-      if (args.log) {
-        log = args.log;
-      }
-
-      const comparer = getStringComparer(caseSensitive);
-      const absoluteOldCurrentDirectory = currentDirectoryOverride;
-      _absoluteOldCurrentDirectory = absoluteOldCurrentDirectory;
-      _absoluteNewCurrentDirectory = absoluteNewCurrentDirectory;
-
-      const directoryShouldChange = !comparer(absoluteNewCurrentDirectory, absoluteOldCurrentDirectory);
-      const relativeNewCurrentDirectory = path.relative(absoluteOldCurrentDirectory, absoluteNewCurrentDirectory);
-      if (directoryShouldChange) {
-        log.trace(` + Changing Current Directory: ${relativeNewCurrentDirectory.green} [${absoluteNewCurrentDirectory.gray}]`);
-        process.chdir(absoluteNewCurrentDirectory);
-        directoryWasChanged = true;
-      }
-
-      const state: TState = {
-        currentDirectory: {
-          old: absoluteOldCurrentDirectory,
-          new: absoluteNewCurrentDirectory,
-        },
-        changed: directoryWasChanged,
-        caseSensitive,
-        relativeNewCurrentDirectory,
-      }
-      resolve(action(state));
-    }).finally(() => {
-      if (directoryWasChanged) {
-        performDirectoryChange(_absoluteOldCurrentDirectory, _absoluteNewCurrentDirectory, _relativeNewCurrentDirectory, log);
-      }
-    });
-  }
-}
 
 export function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<any> {
 
@@ -246,10 +108,10 @@ ${'-'.repeat(titleLineLength).green}
       rebuild = true;
     })
     .command(['--quiet'], () => {
-      GlobalLogger = buildLogger(['warn', 'error'])
+      changeGlobalLogger(['warn', 'error'])
     })
     .command(['--verbose'], () => {
-      GlobalLogger = buildLogger(['trace', 'info', 'warn', 'error'])
+      changeGlobalLogger(['trace', 'info', 'warn', 'error'])
     })
     .command(['--ignore-case'], () => {
       caseSensitive = false;
@@ -289,14 +151,14 @@ ${'-'.repeat(titleLineLength).green}
     }
   }
 
-  const compareStrings = getStringComparer(caseSensitive)
+  const compareStrings = stringComparer.get(caseSensitive)
   GlobalLogger.trace(` + Case-Sensitive Paths: ${caseSensitive ? 'true'.red : 'false'.blue}`)
 
   const absolutePackagePath = path.resolve(absoluteBaseDir, packageFilename);
 
   function getPackageInfo(packagePath: string): { success: true, packageInfo: any } | { success: false, err: any, message: string } {
     try {
-      return { success: true, packageInfo: require(packagePath) };
+      return { success: true, packageInfo: fs.readJSONSync(packagePath) };
     }
     catch (err) {
       return { success: false, err, message: `Error loading package.json '${packagePath.gray}'; err: ${ch.gray(err)}` }
@@ -314,22 +176,30 @@ ${'-'.repeat(titleLineLength).green}
   const mappedPackages: { [key: string]: TPackageMapped } = {};
 
   const sectionName = 'cw:linkModules';
-  const sectionOptionsName = 'cw:LinkModules:options'
+  const sectionOptionsName = 'cw:linkModules:options'
   const { packageInfo } = packageResult;
-  const packagesToInclude = packageInfo[sectionName];
+  const packagesToInclude: TIndexerToString = packageInfo[sectionName];
   if (typeof packagesToInclude !== 'object') {
     const mes = `No section '${sectionName.yellow}' in package.json`;
     GlobalLogger.error(mes);
     return Promise.reject(mes);
   }
 
-  const linkModuleOptions = packageInfo[sectionOptionsName];
+  type TLinkModuleOptions = {
+    targetDir: string;
+  }
+
+  const linkModuleOptions: TLinkModuleOptions = packageInfo[sectionOptionsName];
   if (linkModuleOptions) {
     if (moduleTargetSource === 'default') {
       const { targetDir } = linkModuleOptions;
       if (typeof targetDir === 'string') {
         moduleTarget = targetDir;
         moduleTargetSource = 'config';
+      } else if (targetDir) {
+        const msg = ch.gray(`${'Unknown type'.red} for property ${'targetDir'.white} in ${sectionOptionsName.white}, expected a ${'string'.green}, but got typeof '${(typeof targetDir).red}' [${ch.white(targetDir)}]`);
+        console.error(msg)
+        return Promise.reject(msg.strip);
       }
     }
   }
@@ -437,11 +307,12 @@ ${'-'.repeat(titleLineLength).green}
   type TInstallPathGood = TInstallPathCore & {
     status: 'create' | 'exists',
   }
-  type TInstallPathError = TInstallPathCore & IMessagesWithError & {
+  type TInstallPathError = TInstallPathCore & IMessages.WithError & {
     status: 'error',
   }
 
   type TInstallPathResult = (TInstallPathGood | TInstallPathError);
+
 
   function ensureInstallPathPresent(install: TPackageInstallPath): Promise<TInstallPathResult> {
 
@@ -496,7 +367,7 @@ ${'-'.repeat(titleLineLength).green}
     })
   }
 
-  function printMessages(input: IMessagesWithPossibleError) {
+  function printMessages(input: IMessages.WithPossibleError) {
     if (input) {
       const { messages, errorMessage } = input;
       if (messages) {
@@ -537,11 +408,57 @@ ${'-'.repeat(titleLineLength).green}
 
     return ChangeDirectory.Async({
       absoluteNewCurrentDirectory: absoluteModuleDir
-    }, (state) => {
+    }, async (state) => {
       try {
 
+
+        type TControlFileOptions = typeof _controlFileOptionsPrototype;
+        const _controlFileOptionsPrototype = {
+          package: thisPackageName,
+          version: thisPackageVersion,
+
+          caseSensitive,
+
+          pathLib,
+          pathSeperatorBad,
+          pathSeperatorGood,
+          linkType,
+
+          absoluteBaseDir,
+          currentDirectory,
+
+          sectionName,
+          sectionInfo: packagesToInclude,
+          sectionOptionsName,
+          sectionOptions: linkModuleOptions,
+
+          allowLinksInPackageInstallPath,
+
+          absoluteModuleDir,
+          relativeModuleDir,
+          moduleTarget,
+          moduleTargetSource,
+
+          controlFilename,
+          absoluteControlFilePath: '',
+
+          absolutePackagePath,
+          packageFilename,
+
+          rebuild,
+
+          mappedPackagesCount: 0,
+          mappedPackages,
+
+          symlinkPackagesToRemapCount: symlinkPackagesToRemapKeys.length,
+          symlinkPackagesToRemap,
+
+          badSymlinkPackagesToRemapCount: badSymlinkPackagesToRemapKeys.length,
+          badSymlinkPackagesToRemap,
+        }
+
         const absoluteControlFilePath = path.resolve(absoluteModuleDir, controlFilename);
-        let currentControlFileOptions: any;
+        let currentControlFileOptions: TControlFileOptions;
         try {
           if (fs.existsSync(absoluteControlFilePath)) {
             currentControlFileOptions = fs.readJsonSync(absoluteControlFilePath);
@@ -597,7 +514,7 @@ ${'-'.repeat(titleLineLength).green}
                     const existingMatch = compareStrings(existingLinkTarget.clean, relativeLinkToSourcePath.clean);
                     let existingDiffersByCase: boolean = undefined;
                     if (!existingMatch && caseSensitive) {
-                      existingDiffersByCase = compareStringsInsensitive(existingLinkTarget.clean, relativeLinkToSourcePath.clean);
+                      existingDiffersByCase = stringComparer.Insensitive(existingLinkTarget.clean, relativeLinkToSourcePath.clean);
                     }
                     core.existing = {
                       linkTarget: existingLinkTarget,
@@ -684,9 +601,9 @@ ${'-'.repeat(titleLineLength).green}
 
           const mappedPackagesKeys = Object.keys(mappedPackages);
 
-          type IControlFileOptions = typeof newContorlOptons;
+          type IControlFileOptions = typeof newControlFileOptions;
 
-          const newContorlOptons = {
+          const newControlFileOptions = {
             package: thisPackageName,
             version: thisPackageVersion,
 
@@ -720,7 +637,6 @@ ${'-'.repeat(titleLineLength).green}
 
             rebuild,
 
-
             mappedPackagesCount: mappedPackagesKeys.length,
             mappedPackages,
 
@@ -731,7 +647,7 @@ ${'-'.repeat(titleLineLength).green}
             badSymlinkPackagesToRemap,
           }
 
-          fs.writeJSONSync(absoluteControlFilePath, newContorlOptons, { spaces: 2 });
+          fs.writeJSONSync(absoluteControlFilePath, newControlFileOptions, { spaces: 2 });
 
           const errros: TInstallPathError[] = res.filter(p => p.status === 'error') as any;
           if (errros.length > 0) {

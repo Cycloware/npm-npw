@@ -1,6 +1,6 @@
 import 'colors';
 import chalk = require('chalk');
-import * as Promise from 'bluebird';
+// import * as Promise from 'bluebird';
 
 import fs = require('fs-extra-promise');
 
@@ -12,6 +12,7 @@ export namespace getStatInfo {
   export type TResultError = {
     result: 'not-found' | 'error',
     path: string,
+    message: string,
     errorObject: any,
   }
 
@@ -33,8 +34,25 @@ export namespace getStatInfo {
 
   export type TResult = TResultGood | TResultError;
 
-  export function Async(path: string, resolveLinks: boolean): Promise<TResult> {
-    return fs.lstatAsync(path).then(lstatRet => {
+  function processError(path: string, err: any, stage: string) {
+    const result = ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error');
+    let message;
+    if (result === 'not-found') {
+      message = `File path '${path} not found [${stage}].`;
+    } else {
+      message = `Other error occured [${stage}]; err: ${err}.`;
+    }
+    return {
+      result,
+      message,
+      path,
+      errorObject: err,
+    }
+  }
+
+  export async function Async(path: string, resolveLinks: boolean): Promise<TResult> {
+    try {
+      const lstatRet = await fs.lstatAsync(path)
       const isSymbolicLink = lstatRet.isSymbolicLink();
       const resultRet: TResultGood = {
         result: 'stat-returned',
@@ -48,7 +66,8 @@ export namespace getStatInfo {
         statRet: lstatRet,
       }
       if (resolveLinks && isSymbolicLink) {
-        return fs.statAsync(path).then(statRet => {
+        try {
+          const statRet = await fs.statAsync(path)
           resultRet.resolvedLink = {
             isDirectory: statRet.isDirectory(),
             isFile: statRet.isFile(),
@@ -59,17 +78,14 @@ export namespace getStatInfo {
 
           }
           return resultRet;
-        })
-
+        } catch (err) {
+          return processError(path, err, '2-stat-link-resolve')
+        }
       }
       return resultRet;
-    }).catch(err => {
-      return {
-        result: ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error'),
-        path,
-        errorObject: err,
-      }
-    })
+    } catch (err) {
+      return processError(path, err, '1-lstat')
+    }
   }
 
   export function Sync(path: string, resolveLinks: boolean): TResult {
@@ -89,23 +105,23 @@ export namespace getStatInfo {
       };
 
       if (resolveLinks && resultRet.isSymbolicLink) {
-        const statRet = fs.statSync(path);
-        resultRet.resolvedLink = {
-          isDirectory: statRet.isDirectory(),
-          isFile: statRet.isFile(),
-          isSymbolicLink: statRet.isSymbolicLink(),
+        try {
+          const statRet = fs.statSync(path);
+          resultRet.resolvedLink = {
+            isDirectory: statRet.isDirectory(),
+            isFile: statRet.isFile(),
+            isSymbolicLink: statRet.isSymbolicLink(),
 
-          stat: 'stat',
-          statRet
+            stat: 'stat',
+            statRet
+          }
+        } catch (err) {
+          return processError(path, err, '2-stat-link-resolve')
         }
       }
       return resultRet;
     } catch (err) {
-      return {
-        result: ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error'),
-        path,
-        errorObject: err,
-      }
+      return processError(path, err, '1-lstat')
     }
   }
 }
