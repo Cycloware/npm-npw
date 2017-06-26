@@ -15,10 +15,12 @@ export namespace ChangeDirectory {
     relativeNewCurrentDirectory: string,
   }
 
-  function performDirectoryChange(_absoluteOldCurrentDirectory: string, _absoluteNewCurrentDirectory: string, _relativeNewCurrentDirectory: string, log: IMessageLogger) {
+  function performDirectoryChange(_absoluteOldCurrentDirectory: string, _absoluteNewCurrentDirectory: string, _relativeNewCurrentDirectory: string, log: IMessageLogger, traceOutput: boolean) {
     try {
       const relativeOldWorkingDir = path.relative(_absoluteNewCurrentDirectory, _absoluteOldCurrentDirectory);
-      log.trace(` + Changing Current Directory back: ${relativeOldWorkingDir.green} [${_absoluteNewCurrentDirectory.gray}]`);
+      if (traceOutput) {
+        log.trace(` + Changing Current Directory back: ${relativeOldWorkingDir.green} [${_absoluteNewCurrentDirectory.gray}]`);
+      }
       process.chdir(_absoluteOldCurrentDirectory);
     } catch (err) {
       log.error(` + Error Changing Current Directory back: ${_absoluteOldCurrentDirectory.red} [${_absoluteNewCurrentDirectory.gray}]`)
@@ -28,7 +30,7 @@ export namespace ChangeDirectory {
 
   export async function Async<TResult>(args: {
     absoluteNewCurrentDirectory: string,
-    log?: IMessageLogger, currentDirectoryOverride?: string, caseSensitive?: boolean
+    log?: IMessageLogger, currentDirectoryOverride?: string, caseSensitive?: boolean, traceOutput?: boolean,
   }, action: (state?: TState) => Promise<TResult>): Promise<TResult> {
 
     let directoryWasChanged = false;
@@ -36,10 +38,13 @@ export namespace ChangeDirectory {
     let _absoluteNewCurrentDirectory: string;
     let _relativeNewCurrentDirectory: string;
     let log = GlobalLogger;
+    let traceOutput = true;
     try {
       const { absoluteNewCurrentDirectory, currentDirectoryOverride = process.cwd(),
-        caseSensitive = true } = args;
-
+        caseSensitive = true, } = args;
+      if (args.traceOutput === false) {
+        traceOutput = false;
+      }
       if (args.log) {
         log = args.log;
       }
@@ -52,7 +57,9 @@ export namespace ChangeDirectory {
       const directoryShouldChange = !comparer(absoluteNewCurrentDirectory, absoluteOldCurrentDirectory);
       const relativeNewCurrentDirectory = path.relative(absoluteOldCurrentDirectory, absoluteNewCurrentDirectory);
       if (directoryShouldChange) {
-        log.trace(` + Changing Current Directory: ${relativeNewCurrentDirectory.green} [${absoluteNewCurrentDirectory.gray}]`);
+        if (traceOutput) {
+          log.trace(` + Changing Current Directory: ${relativeNewCurrentDirectory.green} [${absoluteNewCurrentDirectory.gray}]`);
+        }
         process.chdir(absoluteNewCurrentDirectory);
         directoryWasChanged = true;
       }
@@ -69,7 +76,7 @@ export namespace ChangeDirectory {
       return await action(state);
     } finally {
       if (directoryWasChanged) {
-        performDirectoryChange(_absoluteOldCurrentDirectory, _absoluteNewCurrentDirectory, _relativeNewCurrentDirectory, log);
+        performDirectoryChange(_absoluteOldCurrentDirectory, _absoluteNewCurrentDirectory, _relativeNewCurrentDirectory, log, traceOutput);
       }
     }
   }

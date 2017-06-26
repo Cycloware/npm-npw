@@ -1,6 +1,4 @@
 import 'colors';
-import * as Promise from 'bluebird';
-
 import chalk = require('chalk');
 
 import { DBlastMode, spawnerNpm, spawnerLines, spawnerBlast } from './npm/spawner';
@@ -13,17 +11,23 @@ import { unquote } from './unquote';
 
 import isRoot = require('is-root');
 
-import { CommandBuilder } from './commandBuilder';
-
 import { notifier } from './notifier';
+
+import { CommandBuilder } from './commandBuilder';
+import { ChangeDirectory } from './changeDirectory';
+
+import { getChangeDirectoryToWithThrow } from './getChangeDirectoryToWithThrow';
+import { getStatInfo } from './getStatInfo';
+
+import { GlobalLogger as _log } from './logger';
 
 const executingAsRoot = isRoot();
 
 if (executingAsRoot) {
-  console.log(`Running as:  ${executingAsRoot ? 'SUDO'.red : 'normal user'.green}`)
+  _log.trace(`Running as:  ${executingAsRoot ? 'SUDO'.red : 'normal user'.green}`)
 }
 
-export function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<void | -1 | -2> {
+export async function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<string> {
 
   let { commandText, argsIn = [], argsAsIs = [], } = exec;
   if (argsIn.length === 0) {
@@ -119,169 +123,111 @@ export function executor(exec: { commandText: string, argsIn: string[], argsAsIs
   const commandsResult = commands.processCommands(argsIn);
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
 
-  // const argvParsed = argv3.parse;
+  return await ChangeDirectory.Async({
+    absoluteNewCurrentDirectory: await getChangeDirectoryToWithThrow(changeDirTo, startingDirectory),
+  }, async (state) => {
+    try {
 
-  let changeWorkingDirBackTo: (from: string) => void = undefined;
-
-  try {
-    if (changeDirTo) {
-      if (changeDirTo.length < 1) {
-        console.error(`${'Error:'.red}  option '${'--cd'.red}' must be followed by a relative or absolute path.`);
-        return Promise.reject(-1);
-      } else {
-        const rawDir = changeDirTo[0];
-        const inputDir = unquote(rawDir);
-        const inputRelative = !path.isAbsolute(inputDir);
-        const absolutePath = path.resolve(startingDirectory, inputDir);
-
-        try {
-
-          if (fs.existsSync(absolutePath)) {
-            console.log(`Changing working directory to '${inputDir.yellow}'`);
-            process.chdir(absolutePath);
-
-            // no need to change back
-            // changeWorkingDirBackTo = (from) => {
-            //   // process.chdir(currentDirectory);
-            //   if (loud) {
-            //     console.log(`Changing working directory back to '${currentDirectory.yellow}${true ? ` from: ${chalk.red(from)}` : ''}'`);
-            //   }
-            //   // changeWorkingDirBackTo = undefined;
-            // }
-          } else {
-            console.error(`${'Cannot change directory to:'.red}  '${inputDir.black.bgWhite}', please ensure it exists${inputRelative ? `, absolutePath '${absolutePath.black.bgWhite}', currentDirectory: ${startingDirectory.black.bgWhite}'` : ''}`)
-            return Promise.reject(-1);
-          }
-        } catch (err) {
-          console.error(`${'Cannot change directory to:'.red}  '${inputDir.black.bgWhite}', please ensure it exists${inputRelative ? `, absolutePath '${absolutePath.black.bgWhite}', currentDirectory: ${startingDirectory.black.bgWhite}'` : ''}; Error: ${chalk.red(err)}`)
-          return Promise.reject(-1);
-        }
+      if (lineEnding === 'default') {
+        // read from .git config, etc.
+        lineEnding = 'crlf';
       }
-    }
 
-    if (lineEnding === 'default') {
-      // read from .get config, etc.
-      lineEnding = 'crlf';
-    }
+      if (noLines || !lineEnding) {
+        lineEnding = 'none';
+      }
 
-    if (noLines || !lineEnding) {
-      lineEnding = 'none';
-    }
+      if (global) {
+        _log.info(`In ${'global mode'.yellow}...`);
+      }
 
-    if (global) {
-      console.log(`In ${'global mode'.yellow}...`);
-    }
+      let spawnCaller = spawnerNpm;
+      let executionBlocks = 0;
 
-    // console.log(`argv: ${chalk.yellow(JSON.stringify(argv, null, 1))}`);
+      if (blast) {
+        executionBlocks++;
+        await spawnerBlast(blast, false);
+      }
 
-    let spawnCaller = spawnerNpm;
+      let argsPass1 = [].concat(argsToPassLead).concat(argsToPass).concat(argsToPassAdditional);
+      let argsPass2 = [].concat(argsPass1);
 
-    const startingPromise = Promise.resolve()
-    let blastPromise = startingPromise;
-    if (blast) {
-      blastPromise = spawnerBlast(blast, false);
-    }
+      let dualCommandName = undefined;
+      if (dualPhaseMode === 'package-relink') {
+        dualCommandName = 'package-relink';
+      } else if (unlinkMode) {
+        dualCommandName = 'unlink';
+      }
 
-    let argsPass1 = [].concat(argsToPassLead).concat(argsToPass).concat(argsToPassAdditional);
-    let argsPass2 = [].concat(argsPass1);
-
-    let npmPromise = blastPromise;
-
-    let dualCommandName = undefined;
-    if (dualPhaseMode === 'package-relink') {
-      dualCommandName = 'package-relink';
-    } else if (unlinkMode) {
-      dualCommandName = 'unlink';
-    }
-
-    // check real args left
-    if (argsToPass.length === 0) {
-      if (dualCommandName) {
-        let autoDeterminedPackageName = undefined;
-        try {
-          const config = fs.readJsonSync('./package.json');
-          if (config) {
-            if (typeof config.name === 'string') {
-              autoDeterminedPackageName = config.name;
+      if (argsToPass.length === 0) {
+        if (dualCommandName) {
+          let autoDeterminedPackageName = undefined;
+          try {
+            const config = await fs.readJsonAsync('./package.json');
+            if (config) {
+              if (typeof config.name === 'string') {
+                autoDeterminedPackageName = config.name;
+              }
+            }
+            if (autoDeterminedPackageName) {
+              argsPass1 = argsPass1.concat([autoDeterminedPackageName]);
+              _log.info(`Using auto-determined package name '${autoDeterminedPackageName.yellow}' for ${dualPhaseMode.cyan} command.  From directory '${process.cwd().gray}'`)
+            } else {
+              const msg = `${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.`;
+              _log.error(msg);
+              throw new Error(msg.strip);
             }
           }
-          if (autoDeterminedPackageName) {
-            argsPass1 = argsPass1.concat([autoDeterminedPackageName]);
-            console.log(`Using auto-determined package name '${autoDeterminedPackageName.yellow}' for ${dualPhaseMode.cyan} command.  From directory '${process.cwd().gray}'`)
-          } else {
-            console.error(`${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.`);
-            return Promise.reject(-2);
+          catch (err) {
+            const msg = `${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.  Error: ${chalk.red(err)}`;
+            _log.error(msg);
+            throw new Error(msg.strip);
           }
         }
-        catch (err) {
-          console.error(`${dualPhaseMode.cyan} mode requires at least a package name and one could not be determined in '${process.cwd().gray}'.  Check to see if a ${'package.json'.gray} file exists there or specify a package name'.  Error: ${chalk.red(err)}`);
-          return Promise.reject(-2);
-        }
       }
-    }
 
-    if (argsPass1.length > 0) {
-      if (dualPhaseMode) {
-        // argsPassed = argsPassed.filter(p => ['uninstall', 'un', 'unlink', 'remove', 'rm', 'r', 'install', 'i', 'isntall', 'add'].indexOf(p) < 0)
-        if (dualPhaseMode === 'uninstall-install') {
-          npmPromise = npmPromise.then(() =>
-            spawnCaller(['uninstall'].concat(argsPass1), verbose))
-            .then(() =>
-              spawnCaller(['install'].concat(argsPass2), verbose)
-            );
-        } else if (dualPhaseMode === 'package-relink') {
-          npmPromise = npmPromise.then(() =>
-            spawnCaller(['uninstall', '-g'].concat(argsPass1), verbose))
-            .then(() =>
-              spawnCaller(['link'].concat(argsPass2), verbose)
-            );
+      if (argsPass1.length > 0) {
+        executionBlocks++;
+        if (dualPhaseMode) {
+
+          if (dualPhaseMode === 'uninstall-install') {
+            await spawnCaller(['uninstall'].concat(argsPass1), verbose);
+            await spawnCaller(['install'].concat(argsPass2), verbose);
+          } else if (dualPhaseMode === 'package-relink') {
+            await spawnCaller(['uninstall', '-g'].concat(argsPass1), verbose);
+            await spawnCaller(['link'].concat(argsPass2), verbose);
+          } else {
+            const msg = `Unknown dual-phase-mode '${(dualPhaseMode as string).red}'`;
+            _log.error(msg);
+            throw new Error(msg.strip)
+          }
         } else {
-          console.error(`Unknown dual-phase-mode '${(dualPhaseMode as string).red}'`);
-          return Promise.reject(-1);
+          await spawnCaller(argsPass1, verbose);
         }
-      } else {
-        npmPromise = npmPromise.then(() =>
-          spawnCaller(argsPass1, verbose));
       }
-    }
 
-    if (argsPass1.length < 1) {
-      if (dualPhaseMode) {
-        console.error(`${dualPhaseMode.cyan} mode requires at least a package name`);
-        return Promise.reject(-1);
+      if (argsPass1.length < 1) {
+        if (dualPhaseMode) {
+          const msg = `${dualPhaseMode.cyan} mode requires at least a package name`;
+          _log.error(msg);
+          throw new Error(msg.strip)
+        }
       }
-    }
 
-    let linesPromise = npmPromise;
-    if (lineEnding !== 'none') {
-      linesPromise = linesPromise.then(() => {
-        return spawnerLines(lineEnding, verbose);
-      })
-    }
-
-    if (linesPromise === startingPromise) {
-      console.warn(`${'Nothing was executed!'.yellow}`);
-    }
-
-    return linesPromise.tap(() => {
-      if (changeWorkingDirBackTo) {
-        changeWorkingDirBackTo('lastPromise.then');
+      if (lineEnding !== 'none') {
+        executionBlocks++;
+        await spawnerLines(lineEnding, verbose);
       }
-    }).catch(err => {
-      if (changeWorkingDirBackTo) {
-        changeWorkingDirBackTo(`lastPromise.catch; err: ${chalk.red(err)}`);
+
+      if (executionBlocks === 0) {
+        _log.warn(`${'Nothing was executed!'.yellow}`);
       }
-      throw err;
-    })
 
-  } catch (err) {
-    console.error(`${'Unhandled exception:'.red}  ${chalk.gray.bgBlack(err)}`);
-    return Promise.reject(-1);
-  }
-  finally {
-    if (changeWorkingDirBackTo) {
-      changeWorkingDirBackTo('finally');
+      return 'All done';
+    } catch (err) {
+      const msg = `${'Unhandled exception:'.red}  ${chalk.gray.bgBlack(err)}`;
+      _log.error(msg);
+      throw new Error(msg.strip)
     }
-  }
-
+  });
 }

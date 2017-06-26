@@ -1,6 +1,5 @@
 import 'colors';
 import chalk = require('chalk');
-// import * as Promise from 'bluebird';
 
 import fs = require('fs-extra-promise');
 

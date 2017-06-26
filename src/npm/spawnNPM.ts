@@ -1,5 +1,3 @@
-import * as Promise from 'bluebird';
-
 import { spawn } from  'child_process';
 
 /**

@@ -14,5 +14,6 @@ export declare namespace ChangeDirectory {
         log?: IMessageLogger;
         currentDirectoryOverride?: string;
         caseSensitive?: boolean;
+        traceOutput?: boolean;
     }, action: (state?: TState) => Promise<TResult>): Promise<TResult>;
 }

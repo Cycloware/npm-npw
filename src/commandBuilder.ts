@@ -1,5 +1,4 @@
 import 'colors';
-import * as Promise from 'bluebird';
 
 import fs = require('fs-extra-promise');
 import path = require('path');

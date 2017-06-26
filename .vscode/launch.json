@@ -28,11 +28,11 @@
       ]
     },
     {
-      "name": "npw.js",
+      "name": "npw.ts",
       "type": "node",
       "request": "launch",
       "protocol": "inspector",
-      "program": "${workspaceRoot}/lib/bin/npw.js",
+      "program": "${workspaceRoot}/src/bin/npw.ts",
       "stopOnEntry": false,
       "args": [
         "cd",
@@ -41,7 +41,7 @@
         "screen-clear",
         "--blast"
       ],
-      "cwd": "${workspaceRoot}/temp",
+      "cwd": "${workspaceRoot}",
       "preLaunchTask": null,
       "runtimeExecutable": null,
       "runtimeArgs": [
@@ -49,7 +49,12 @@
       ],
       "env": {
         "NODE_ENV": "development"
-      }
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/lib/**/*.js",
+        "${workspaceRoot}/node_modules/**/*.js"
+      ]
     },
     {
       "name": "npw-uninstall-install.js",

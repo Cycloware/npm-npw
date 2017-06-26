@@ -1,5 +1,3 @@
-/// <reference types="bluebird" />
-import * as Promise from 'bluebird';
 /**
  * Spawn the NPM command.
  * @param  {String[]} args    Command arguments.
