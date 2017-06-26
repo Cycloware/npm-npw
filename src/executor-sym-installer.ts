@@ -72,9 +72,9 @@ type TPackageMappedError = TPackageMappedCore & IMessages.WithError & {
 type TPackageMapped = (TPackageMappedGood | TPackageMappedError);
 
 
-export async function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<any> {
+export async function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[], noHeader?: boolean, noEmptyPackageSectionMessage?: boolean }): Promise<any> {
 
-  let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
+  let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [], noHeader = false, noEmptyPackageSectionMessage = false } = exec;
   if (argsIn.length === 0) {
     argsIn = process.argv.slice(2);
   } else {
@@ -82,7 +82,7 @@ export async function moduleLinker(exec: { commandText: string, argsIn?: string[
       argsIn = argsIn.concat(process.argv.slice(2))
     }
   }
-  {
+  if (!noHeader) {
     const titleLine = `${'Cycloware'.blue} ${'Module Linker'.green.bold.italic}`;
     const titleLineLength = ch.stripColor(titleLine).length;
     _log.info(
@@ -186,14 +186,16 @@ ${'-'.repeat(titleLineLength).green}
   const packagesToLink: TPackageToRemap[] = [];
   const packagesThatCantLink: TPackageToRemapHeader[] = [];
 
-  const sectionName = 'cw:linkModules';
-  const sectionOptionsName = 'cw:linkModules:options'
+  const sectionName = 'cw:symlinkModules';
+  const sectionOptionsName = 'cw:symlinkModules:options'
   const { packageInfo } = packageResult;
   const packagesToInclude: TIndexerToString = packageInfo[sectionName];
   if (typeof packagesToInclude !== 'object') {
     const mes = `No section '${sectionName.yellow}' in package.json`;
-    _log.error(mes);
-    return mes;
+    if (!noEmptyPackageSectionMessage) {
+      _log.error(mes);
+    }
+    return mes.strip;
   }
 
   type TLinkModuleOptions = {
@@ -354,7 +356,7 @@ Err: ${ch.gray(err)}`
             // }
 
             if (installedPackagesToRemoveC.length > 0) {
-              _log.warn(ch.gray(`${'Unlink Packages'.white}: ${`removing ${installedPackagesToRemoveC.length} symlinks`.blue}${rebuild ? ` for rebuild`: ''} [${installedPackagesToRemoveFullPackageNames.map(p => p.yellow).join(', '.white)}]`));
+              _log.warn(ch.gray(`${'Unlink Packages'.white}: ${`removing ${installedPackagesToRemoveC.length} symlinks`.blue}${rebuild ? ` for rebuild` : ''} [${installedPackagesToRemoveFullPackageNames.map(p => p.yellow).join(', '.white)}]`));
 
               let needsDeleteTargets = false;
               for (const info of installedPackagesToRemoveC) {
@@ -417,7 +419,7 @@ Err: ${ch.gray(err)}`
 `));
       }
       else {
-        _log.warn(` + No ${'packagesToLink'.yellow} to symlin.
+        _log.warn(` + No ${'packages to symlink'.yellow}.
 `);
       }
 
@@ -809,7 +811,7 @@ Err: ${ch.gray(err)}`
         const colorToUse = linked.length > 0 ? (error.length > 0 ? ch.yellow : ch.green) : ch.red;
 
         if (installedPackagesToRemove.length > 0) {
-          _log.warn(`*** ${ch.blue(`${installedPackagesToRemove.length} unused symlinks${rebuild ? ` for rebuild`: ''}`)} removed
+          _log.warn(`*** ${ch.blue(`${installedPackagesToRemove.length} unused symlinks${rebuild ? ` for rebuild` : ''}`)} removed
 `);
         }
 
@@ -826,7 +828,7 @@ Err: ${ch.gray(err)}`
 
         const errors: TInstallPathError[] = res.filter(p => p.status === 'error') as any;
         if (errors.length > 0) {
-          const msg = (`${'***'.red} linkModules ${'failed'.red} (${`${errors.length.toString()} error(s)`.red}):
+          const msg = (`${'***'.red} symlinkModules ${'failed'.red} (${`${errors.length.toString()} error(s)`.red}):
 ${errors.map((p, dex) => `  ${`${dex + 1}]`.red} ${p.errorMessage.trim()}`).join('  \n')}`);
           _log.error(msg);
         }

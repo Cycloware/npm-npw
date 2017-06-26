@@ -3,5 +3,5 @@
 
 import { executor } from '../executor';
 
-executor({ commandText: 'npw-install', argsIn: ['install'] });
+executor({ commandText: 'npw-install', argsIn: ['install', '--sym'] });
 

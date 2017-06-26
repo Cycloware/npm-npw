@@ -1,5 +1,6 @@
 import 'colors';
 import chalk = require('chalk');
+import ora = require('ora');
 
 import { DBlastMode, spawnerNpm, spawnerLines, spawnerBlast } from './npm/spawner';
 
@@ -8,8 +9,6 @@ import path = require('path');
 import del = require('del');
 
 import { unquote } from './unquote';
-
-import isRoot = require('is-root');
 
 import { notifier } from './notifier';
 
@@ -21,11 +20,7 @@ import { getStatInfo } from './getStatInfo';
 
 import { GlobalLogger as _log } from './logger';
 
-const executingAsRoot = isRoot();
-
-if (executingAsRoot) {
-  _log.trace(`Running as:  ${executingAsRoot ? 'SUDO'.red : 'normal user'.green}`)
-}
+import { moduleLinker } from './executor-sym-installer';
 
 export async function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<string> {
 
@@ -54,6 +49,8 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
   let changeDirTo: string[] = undefined;
   const startingDirectory = process.cwd();
 
+  let runSymlinker: 'default' | 'yes' | 'no' = 'default';
+
   const commands = CommandBuilder.Start()
     .command(['--list-globals', '--list-global', '-list-globals', '-list-global'],
     (nArgs, argsToPass, argsToEnd) => {
@@ -71,6 +68,14 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
     .command(['--loud', '-loud'],
     () => {
       loud = true
+    })
+    .command(['--sym'],
+    () => {
+      runSymlinker = 'yes';
+    })
+    .command(['--no-sym', '--nosym'],
+    () => {
+      runSymlinker = 'no';
     })
     .command(['--global', '-g'],
     () => {
@@ -203,6 +208,44 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
           }
         } else {
           await spawnCaller(argsPass1, verbose);
+        }
+      }
+
+      if (runSymlinker === 'yes') {
+        const noSpinner = true;
+        _log.info('');
+        let spinner = ora({
+          color: 'yellow'
+        });
+        const symlinkName = 'symlink modules';
+        const startMessage = `${chalk.yellow('Running')} ${chalk.cyan(symlinkName)}`;;
+        if (noSpinner) {
+          _log.info(`
+${chalk.yellow('-')} ${startMessage}
+`)
+        } else {
+          spinner.text = startMessage;
+          spinner.start();
+        }
+        try {
+          await moduleLinker({ commandText: `${commandText} --sym`, argsIn: [], noHeader: true })
+          const finishMessage = `${chalk.green('Finished')} ${chalk.cyan(symlinkName)}`;
+          if (verbose) {
+            _log.info(`
+${chalk.green('√')} ${finishMessage}`);
+          } else {
+            spinner.succeed(finishMessage);
+          }
+
+        } catch (err) {
+          const errorMessage = `${chalk.red('Error')} ${chalk.cyan(symlinkName)}`;
+          if (verbose) {
+            _log.info(`
+${chalk.green('√')} ${errorMessage}`);
+          } else {
+            spinner.fail(errorMessage);
+          }
+          throw err;
         }
       }
 

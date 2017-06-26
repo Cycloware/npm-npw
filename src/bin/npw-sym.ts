@@ -3,5 +3,5 @@
 
 import { moduleLinker } from '../executor-sym-installer';
 
-moduleLinker({ commandText: 'npw-sym-install', argsIn: [] });
+moduleLinker({ commandText: 'npw-sym', argsIn: [] });
 

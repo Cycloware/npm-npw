@@ -1,13 +1,13 @@
 {
   "name": "npw",
-  "version": "1.0.13",
+  "version": "1.0.15",
   "description": "Wraps `npm 5` with extra commands and corrects line-endings in `package*.json` to match .git config.",
   "engines": {
     "node": ">=7",
     "npm": ">=5"
   },
   "bin": {
-    "npw-sym-install": "./lib/bin/npw-sym-install.js",
+    "npw-sym": "./lib/bin/npw-sym-install.js",
     "npw-list": "./lib/bin/npw-list.js",
     "npw-ls": "./lib/bin/npw-list.js",
     "npw-list-global": "./lib/bin/npw-list-global.js",
@@ -55,7 +55,7 @@
     "test-npw-blast": "cd temp && node ../lib/bin/npw-blast.js",
     "build": "npm run build:lib:prod",
     "prebuild:lib": "clscr && rimraf lib",
-    "build:lib:prod": "tsc -p src/tsconfig.json --inlineSourceMap false --sourceMap false --pretty",
+    "build:lib:prod": "tsc -p src/tsconfig.json --inlineSourceMap false --sourceMap false --pretty --target es2015",
     "build:lib": "tsc -p src/tsconfig.json",
     "build:lib:watch": "tsc -p src/tsconfig.json --watch --pretty"
   },
@@ -97,7 +97,6 @@
     "colors": "^1.1.2",
     "del": "^3.0.0",
     "fs-extra-promise": "^1.0.1",
-    "is-root": "^1.0.0",
     "lodash": "^4.17.4",
     "ora": "^1.3.0",
     "tslib": "^1.7.1",

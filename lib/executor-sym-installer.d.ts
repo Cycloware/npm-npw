@@ -4,4 +4,6 @@ export declare function moduleLinker(exec: {
     argsIn?: string[];
     argsAsIs?: string[];
     argsToNpm?: string[];
+    noHeader?: boolean;
+    noEmptyPackageSectionMessage?: boolean;
 }): Promise<any>;

@@ -9,8 +9,6 @@ import path = require('path');
 
 import { unquote } from './unquote';
 
-import isRoot = require('is-root');
-
 import { CommandBuilder } from './commandBuilder';
 import { ChangeDirectory } from './changeDirectory';
 
@@ -18,11 +16,6 @@ import { getChangeDirectoryToWithThrow } from './getChangeDirectoryToWithThrow';
 import { getStatInfo } from './getStatInfo';
 
 import { GlobalLogger as _log } from './logger';
-
-const executingAsRoot = isRoot();
-if (executingAsRoot) {
-  _log.trace(`Running as:  ${executingAsRoot ? 'SUDO'.red : 'normal user'.green}`)
-}
 
 export async function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<string> {
 
