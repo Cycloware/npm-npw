@@ -2,7 +2,7 @@
   "extends": "./tsconfig.typings.json",
   "compilerOptions": {
     "module": "commonjs",
-    "target": "es2015",
+    "target": "es2017",
     "moduleResolution": "node",
     "jsx": "react",
     "pretty": true,

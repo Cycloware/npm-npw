@@ -19,6 +19,7 @@ export declare namespace getStatInfo {
         isDirectory: boolean;
         isFile: boolean;
         isSymbolicLink: boolean;
+        type: 'file' | 'directory' | 'symlink' | 'unknown';
         stat: 'lstat' | 'stat';
         statRet: Stats;
     };

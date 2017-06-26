@@ -5,6 +5,29 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "npw-sym-install.ts",
+      "type": "node",
+      "request": "launch",
+      "protocol": "inspector",
+      "program": "${workspaceRoot}/src/bin/npw-sym-install.ts",
+      "stopOnEntry": true,
+      "args": [],
+      "cwd": "${workspaceRoot}/../EMS/rubix",
+      "preLaunchTask": null,
+      "runtimeExecutable": null,
+      "runtimeArgs": [
+        "--nolazy"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/lib/**/*.js",
+        "${workspaceRoot}/node_modules/**/*.js"
+      ]
+    },
+    {
       "name": "npw.js",
       "type": "node",
       "request": "launch",

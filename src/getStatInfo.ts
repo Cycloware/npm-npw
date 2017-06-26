@@ -28,6 +28,8 @@ export namespace getStatInfo {
     isFile: boolean,
     isSymbolicLink: boolean,
 
+    type: 'file' | 'directory' | 'symlink' | 'unknown',
+
     stat: 'lstat' | 'stat',
     statRet: Stats,
   }
@@ -50,34 +52,33 @@ export namespace getStatInfo {
     }
   }
 
+  function infoFromStats(statType: 'lstat' | 'stat', statRet: Stats): TInfo {
+    const isSymbolicLink = statRet.isSymbolicLink();
+    const isFile = statRet.isFile();
+    const isDirectory = statRet.isDirectory();
+    return {
+      isDirectory,
+      isFile,
+      isSymbolicLink,
+      type: isDirectory ? 'directory' : isFile ? 'file' : isSymbolicLink ? 'symlink' : 'unknown',
+      stat: statType,
+      statRet,
+    }
+  }
+
   export async function Async(path: string, resolveLinks: boolean): Promise<TResult> {
     try {
       const lstatRet = await fs.lstatAsync(path)
-      const isSymbolicLink = lstatRet.isSymbolicLink();
       const resultRet: TResultGood = {
         result: 'stat-returned',
         path,
-        isDirectory: lstatRet.isDirectory(),
-        isFile: lstatRet.isFile(),
-        isSymbolicLink,
+        ...infoFromStats('lstat', lstatRet),
         resolveLinks,
-
-        stat: 'lstat',
-        statRet: lstatRet,
       }
-      if (resolveLinks && isSymbolicLink) {
+      if (resolveLinks && lstatRet.isSymbolicLink) {
         try {
           const statRet = await fs.statAsync(path)
-          resultRet.resolvedLink = {
-            isDirectory: statRet.isDirectory(),
-            isFile: statRet.isFile(),
-            isSymbolicLink: statRet.isSymbolicLink(),
-
-            stat: 'stat',
-            statRet
-
-          }
-          return resultRet;
+          resultRet.resolvedLink = infoFromStats('stat', statRet);
         } catch (err) {
           return processError(path, err, '2-stat-link-resolve')
         }
@@ -95,26 +96,14 @@ export namespace getStatInfo {
       const resultRet: TResultGood = {
         result: 'stat-returned',
         path,
-        isDirectory: lstatRet.isDirectory(),
-        isFile: lstatRet.isFile(),
-        isSymbolicLink: lstatRet.isSymbolicLink(),
+        ...infoFromStats('lstat', lstatRet),
         resolveLinks,
-
-        stat: 'lstat',
-        statRet: lstatRet,
       };
 
       if (resolveLinks && resultRet.isSymbolicLink) {
         try {
           const statRet = fs.statSync(path);
-          resultRet.resolvedLink = {
-            isDirectory: statRet.isDirectory(),
-            isFile: statRet.isFile(),
-            isSymbolicLink: statRet.isSymbolicLink(),
-
-            stat: 'stat',
-            statRet
-          }
+          resultRet.resolvedLink = infoFromStats('stat', statRet);
         } catch (err) {
           return processError(path, err, '2-stat-link-resolve')
         }
