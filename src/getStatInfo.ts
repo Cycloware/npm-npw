@@ -1,8 +1,7 @@
 import 'colors';
-import chalk = require('chalk');
+import ch = require('chalk');
 
 import fs = require('fs-extra-promise');
-
 
 export namespace getStatInfo {
 

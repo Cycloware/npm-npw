@@ -5,11 +5,11 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "npw-sym-install.ts",
+      "name": "npw-sym.ts",
       "type": "node",
       "request": "launch",
       "protocol": "inspector",
-      "program": "${workspaceRoot}/src/bin/npw-sym-install.ts",
+      "program": "${workspaceRoot}/src/bin/npw-sym.ts",
       "stopOnEntry": true,
       "args": [],
       "cwd": "${workspaceRoot}/../EMS/rubix",

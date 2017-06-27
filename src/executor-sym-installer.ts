@@ -17,15 +17,14 @@ import { unquote } from './unquote';
 import { CommandBuilder } from './commandBuilder';
 import { ChangeDirectory } from './changeDirectory';
 
+import { getPackageInfo } from './getPackageInfo';
 import { getStatInfo } from './getStatInfo';
 
 import { GlobalLogger as _log, IMessageLogger, changeGlobalLogger, IMessages, buildMessagesCore } from './logger';
 
 import { stringComparer } from './stringComparer';
 
-
 import { ThisPackage } from './thisPackage';
-
 
 type TPackageToRemapHeader = { fullPackageName: string, rawValue: string };
 type TPackageToRemap = TPackageToRemapHeader & {
@@ -36,7 +35,8 @@ type TPackageToRemap = TPackageToRemapHeader & {
 
 type TPath = { clean: string, raw: string }
 
-type KSourceChecks = 'source-not-directory' | 'source-not-found' | 'source-stat-error' | 'source-unhandled-error';
+type KSourceChecks = 'source-not-directory' | 'source-not-found' | 'source-stat-error' | 'source-unhandled-error' |
+  'source-has-no-package-info' | 'source-package-info-error' | 'source-package-has-no-name' | 'source-package-name-mismatch';
 type TPackageSourceValidationGood = {
   status: 'source-not-checked' | 'source-valid',
 }
@@ -58,9 +58,9 @@ type TPackageMappedCore = TPackageToRemap & IMessages & {
     existingDiffersByCase?: boolean,
   },
 }
+
 type TPackageMappedGood = TPackageMappedCore & {
   status: 'mapped-fresh' | 'exists' | 'mapped-recreate',
-
 }
 type TPackageMappedError = TPackageMappedCore & IMessages.WithError & {
   status: 'error',
@@ -70,7 +70,6 @@ type TPackageMappedError = TPackageMappedCore & IMessages.WithError & {
 }
 
 type TPackageMapped = (TPackageMappedGood | TPackageMappedError);
-
 
 export async function moduleLinker(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[], noHeader?: boolean, noEmptyPackageSectionMessage?: boolean }): Promise<any> {
 
@@ -101,7 +100,8 @@ ${'-'.repeat(titleLineLength).green}
   let allowLinksInPackageInstallPath = false;
   let caseSensitive = false;
   let deleteTargets = false;
-
+  type DModuleVerfication = 'dafault' | 'full' | 'none'
+  let moduleNameVerification: boolean = undefined;
   const packageFilename = 'package.json';
 
   const commands = CommandBuilder.Start()
@@ -111,6 +111,12 @@ ${'-'.repeat(titleLineLength).green}
       moduleTargetSource = 'command';
     }, {
       nArgs: 1,
+    })
+    .command(['--no-verify', '--verify-none'], () => {
+      moduleNameVerification = false;
+    })
+    .command(['--verify', '--verify-full'], () => {
+      moduleNameVerification = true;
     })
     .command(['--rebuild'], () => {
       rebuild = true;
@@ -127,6 +133,7 @@ ${'-'.repeat(titleLineLength).green}
     .command(['--ignore-case'], () => {
       caseSensitive = false;
     })
+
   const commandsResult = commands.processCommands(argsIn);
   const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
 
@@ -167,20 +174,10 @@ ${'-'.repeat(titleLineLength).green}
 
   const absolutePackagePath = path.resolve(absoluteBaseDir, packageFilename);
 
-  async function getPackageInfo(packagePath: string): Promise<{ success: true, packageInfo: any } | { success: false, err: any, message: string }> {
-    try {
-      return { success: true, packageInfo: await fs.readJSONAsync(packagePath) };
-    }
-    catch (err) {
-      return { success: false, err, message: `Error loading package.json '${packagePath.gray}'; err: ${ch.gray(err)}` }
-    }
-  }
-
-  const packageResult = await getPackageInfo(absolutePackagePath);
-  if (packageResult.success === false) {
+  const packageResult = await getPackageInfo(absolutePackagePath)
+  if (packageResult.result !== 'success') {
     _log.error(packageResult.message)
     throw new Error(packageResult.message.strip);
-    // return Promise.reject(packageResult.message);
   }
 
   const packagesToLink: TPackageToRemap[] = [];
@@ -199,7 +196,8 @@ ${'-'.repeat(titleLineLength).green}
   }
 
   type TLinkModuleOptions = {
-    targetDir: string;
+    targetDir: string,
+    moduleNameVerification: boolean,
   }
 
   const linkModuleOptions: TLinkModuleOptions = packageInfo[sectionOptionsName];
@@ -211,12 +209,24 @@ ${'-'.repeat(titleLineLength).green}
         moduleTargetSource = 'config';
       } else if (targetDir) {
         const msg = ch.gray(`${'Unknown type'.red} for property ${'targetDir'.white} in ${sectionOptionsName.white}, expected a ${'string'.green}, but got typeof '${(typeof targetDir).red}' [${ch.white(targetDir)}]`);
-        console.error(msg)
-        // return Promise.reject(msg.strip);
+        _log.error(msg)
         throw new Error(msg.strip);
       }
     }
+
+    if (moduleNameVerification === undefined) {
+      const { moduleNameVerification: _mnv } = linkModuleOptions;
+      if (typeof _mnv === 'boolean') {
+        moduleNameVerification = _mnv;
+      }
+    }
   }
+
+  if (moduleNameVerification === undefined) {
+    moduleNameVerification = true;
+  }
+
+
   const absoluteModuleDir = path.resolve(absoluteBaseDir, moduleTarget);
   const relativeModuleDir = path.relative(absoluteBaseDir, absoluteModuleDir);
   const currentDirectory = process.cwd();
@@ -229,9 +239,6 @@ ${'-'.repeat(titleLineLength).green}
     absoluteNewCurrentDirectory: absoluteModuleDir
   }, async (state) => {
     try {
-
-      // splitPackageName: string[], packageName: string, fullPackageName: string, absolutePackageInstallPath: string,
-      //       relativeSourcePath: TPackagePath, absolutePackageDestinationPath: TPackagePath,
 
       const filePrefix = 'file:';
       for (const fullPackageName in packagesToInclude) {
@@ -311,10 +318,6 @@ Err: ${ch.gray(err)}`
           }
 
           const { installedPackages, toLinkPackages, installedPackagesNotRemoved } = currentControlRawData;
-
-          // packagesLinked
-          // const installedPackages
-
           return {
             status: 'good' as 'good',
             data: {
@@ -408,7 +411,6 @@ Err: ${ch.gray(err)}`
       } else {
         controlOptionsParsed.errorMessage;
       }
-
 
       if (packagesThatCantLink.length > 0) {
         _log.warn(` + ${'BAD packagesThatCantLink'.red} ${`package paths must start with '${filePrefix.green}'`}: ${packagesThatCantLink.map(x => `${x.fullPackageName.gray}: ${x.rawValue.yellow}`).join('; ')}`);
@@ -559,6 +561,8 @@ Err: ${ch.gray(err)}`
           packageInstallHardFolderPath, absolutePackageInstallPath, absoluteSourcePath,
           absolutePackageDestinationPath, packageDestinationInModules, relativeSourcePath } = info;
 
+        const absoluteSourcePathClean = absoluteSourcePath.clean;
+
         const messages = buildMessagesCore();
         const core: TPackageMappedCore = {
           ...info, messages,
@@ -570,37 +574,87 @@ Err: ${ch.gray(err)}`
         if (validateSourcesExist) {
           async function sourceValidator() {
             try {
-              const statsSource = await getStatInfo.Async(absoluteSourcePath.clean, false);
+              const statsSource = await getStatInfo.Async(absoluteSourcePathClean, false);
               if (statsSource.result === 'stat-returned') {
                 if (statsSource.isDirectory) {
-                  const ret: TPackageSourceValidationGood = {
-                    status: 'source-valid'
+                  if (moduleNameVerification) {
+                    const sourcePackageInfoPath = path.join(absoluteSourcePathClean, 'package.json');
+                    const resPackageInfo = await getPackageInfo(sourcePackageInfoPath);
+                    if (resPackageInfo.result === 'success') {
+                      const { packageInfo } = resPackageInfo;
+                      if (packageInfo.name) {
+                        if (fullPackageName !== packageInfo.name) {
+                          const insensitiveMatch = stringComparer.Insensitive(fullPackageName, packageInfo.name);
+                          let msg = ` -- Source package name is '${packageInfo.name.red}' and does not match name '${fullPackageName.red}' listed in the section '${sectionName.red}' of package file [${absolutePackagePath.gray}].`;
+                          if (insensitiveMatch) {
+                            msg += `
+    ${'*** names only differ by case ***'.red}`;
+                          }
+                          const ret: TPackageSourceValidationError = {
+                            status: 'source-package-name-mismatch',
+                            errorMessage: msg,
+                          }
+                          return ret;
+                        }
+                        else {
+                          const ret: TPackageSourceValidationGood = {
+                            status: 'source-valid'
+                          }
+                          return ret;
+                        }
+                      } else {
+                        const ret: TPackageSourceValidationError = {
+                          status: 'source-package-has-no-name',
+                          errorMessage: ` -- ${'No name property'.red} in source package.json file [${sourcePackageInfoPath.grey}].  TargetPackage: ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}].`,
+                        }
+                        return ret;
+                      }
+                    } else {
+                      if (resPackageInfo.result === 'not-found') {
+                        const ret: TPackageSourceValidationError = {
+                          status: 'source-has-no-package-info',
+                          errorMessage: ` -- ${'No package.json file.'.red} in source location directory.  TargetPackage: ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}].`,
+                        }
+                        return ret;
+                      } else {
+                        const ret: TPackageSourceValidationError = {
+                          status: 'source-package-info-error',
+                          errorMessage: ` -- ${'Other error'.red} try to read package.json file.  TargetPackage: ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}]; err: [${ch.grey(resPackageInfo.err)}]`,
+                        }
+                        return ret;
+                      }
+                    }
                   }
-                  return ret;
+                  else {
+                    const ret: TPackageSourceValidationGood = {
+                      status: 'source-valid'
+                    }
+                    return ret;
+                  }
                 } else {
                   const ret: TPackageSourceValidationError = {
                     status: 'source-not-directory',
-                    errorMessage: ` -- ${'Source location exists but is not a directory: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; Stat: [${JSON.stringify(statsSource, null, 1).gray}]`,
+                    errorMessage: ` -- ${'Source location exists but is not a directory: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}]; Stat: [${JSON.stringify(statsSource, null, 1).gray}]`,
                   }
                   return ret;
                 }
               } else if (statsSource.result === 'not-found') {
                 const ret: TPackageSourceValidationError = {
                   status: 'source-not-found',
-                  errorMessage: ` -- ${'Source location was not found: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]`,
+                  errorMessage: ` -- ${'Source location was not found: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}]`,
                 }
                 return ret;
               } else {
                 const ret: TPackageSourceValidationError = {
                   status: 'source-stat-error',
-                  errorMessage: ` -- ${'Other error from getStatInfo: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; Err: [${ch.gray(statsSource.errorObject)}]`,
+                  errorMessage: ` -- ${'Other error from getStatInfo: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}]; Err: [${ch.gray(statsSource.errorObject)}]`,
                 }
                 return ret;
               }
             } catch (err) {
               const ret: TPackageSourceValidation = {
                 status: 'source-unhandled-error',
-                errorMessage: ` -- ${'Unhandled error validating source: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePath.clean.gray}]; err: [${ch.gray(err)}]`,
+                errorMessage: ` -- ${'Unhandled error validating source: '.red} ${fullPackageName.yellow}; Source: ${relativeSourcePath.clean.red} [${absoluteSourcePathClean.gray}]; err: [${ch.gray(err)}]`,
               }
               return ret;
             }

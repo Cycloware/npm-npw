@@ -19,7 +19,7 @@ export default function spawnNPM(args: string[], verbose: boolean) {
     // console.log(`npm curdir '${process.cwd().yellow}'`)
     const processNpm = spawn('npm', args, {
       shell: true,
-      stdio: 'inherit'
+      stdio: verbose ? 'inherit' : undefined,
     });
     // if (verbose) {
     //   npm.stdout.pipe(process.stdout);
