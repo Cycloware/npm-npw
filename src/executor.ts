@@ -22,7 +22,7 @@ import { GlobalLogger as _log } from './logger';
 
 import { moduleLinker } from './executor-sym-installer';
 
-export async function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<string> {
+export async function executor(exec: { commandText: string, argsIn: string[], argsAsIs?: string[] }): Promise<any> {
 
   let { commandText, argsIn = [], argsAsIs = [], } = exec;
   if (argsIn.length === 0) {
@@ -51,8 +51,10 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
 
   let runSymlinker: 'default' | 'yes' | 'no' = 'default';
 
-  let noExact: boolean = undefined;
+  let noExact: boolean = true;
   let installCalled: boolean = undefined;
+
+  let uninstallSym: boolean = false;
 
   const commands = CommandBuilder.Start()
     .command(['--list-globals', '--list-global', '-list-globals', '-list-global'],
@@ -115,11 +117,11 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
       }
     })
     .command(['--dev', '-dev'],
-    ({toPass}) => {
+    ({ toPass }) => {
       toPass.push('--save-dev')
     })
     .command(['--package-unlink'],
-    ({toPass}) => {
+    ({ toPass }) => {
       toPass.push('uninstall', '-g')
       unlinkMode = true
     })
@@ -176,6 +178,10 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
           await spawnerBlast(blast, false);
         }
 
+        if (installCalled) {
+          uninstallSym = true;
+        }
+
         if (!noExact) {
           if (installCalled || dualPhaseMode === 'uninstall-install') {
             argsToPassAdditional.push('--save-exact');
@@ -216,6 +222,44 @@ export async function executor(exec: { commandText: string, argsIn: string[], ar
               _log.error(msg);
               throw new Error(msg.strip);
             }
+          }
+        }
+
+        if (uninstallSym) {
+          const noSpinner = true;
+          _log.info('');
+          let spinner = ora({
+            color: 'yellow'
+          });
+          const symlinkName = 'remove symlink modules';
+          const startMessage = `${chalk.yellow('Running')} ${chalk.cyan(symlinkName)}`;;
+          if (noSpinner) {
+            _log.info(`
+${chalk.yellow('-')} ${startMessage}
+`)
+          } else {
+            spinner.text = startMessage;
+            spinner.start();
+          }
+          try {
+            await moduleLinker({ commandText: `${commandText} --sym-uninstall`, argsIn: ['--uninstall'], noHeader: true })
+            const finishMessage = `${chalk.green('Finished')} ${chalk.cyan(symlinkName)}`;
+            if (verbose) {
+              _log.info(`
+${chalk.green('√')} ${finishMessage}`);
+            } else {
+              spinner.succeed(finishMessage);
+            }
+
+          } catch (err) {
+            const errorMessage = `${chalk.red('Error')} ${chalk.cyan(symlinkName)}`;
+            if (verbose) {
+              _log.info(`
+${chalk.green('√')} ${errorMessage}`);
+            } else {
+              spinner.fail(errorMessage);
+            }
+            // throw err;
           }
         }
 

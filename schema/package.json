@@ -4,9 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "typescript-json-schema 'tsconfig.json' 'IPackageInherits'"
+    "build": "typescript-json-schema tsconfig.json IPackageInherits"
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {}
+  "dependencies": {
+    "typescript-json-schema": "0.14.0"
+  }
 }

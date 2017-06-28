@@ -27,11 +27,35 @@ export namespace ChangeDirectory {
       throw err;
     }
   }
+  export type TError = {
+    result: 'not-found' | 'error',
+    path: string,
+    message: string,
+    errorObject: any,
+  }
+
+  function defaultErrorProcessor(err: any, filepath: string): TError {
+    const result = ((err.code === 'ENOENT') ? 'not-found' : 'error') as ('not-found' | 'error');
+    let message;
+    if (result === 'not-found') {
+      message = `Cannot change directory to '${filepath}' because it was not found.`;
+    } else {
+      message = `Other error occured with changing directory to '${filepath}'; err: ${err}.`;
+    }
+    return {
+      result,
+      message,
+      path: filepath,
+      errorObject: err,
+    }
+
+  }
+
 
   export async function Async<TResult>(args: {
     absoluteNewCurrentDirectory: string,
     log?: IMessageLogger, currentDirectoryOverride?: string, caseSensitive?: boolean, traceOutput?: boolean,
-  }, action: (state?: TState) => Promise<TResult>): Promise<TResult> {
+  }, action: (state?: TState) => Promise<TResult>, errorProcessor: (err: any, filepath: string) => TError = defaultErrorProcessor): Promise<TResult | TError> {
 
     let directoryWasChanged = false;
     let _absoluteOldCurrentDirectory: string;
@@ -74,6 +98,8 @@ export namespace ChangeDirectory {
         relativeNewCurrentDirectory,
       }
       return await action(state);
+    } catch (err) {
+      return errorProcessor(err, _relativeNewCurrentDirectory);
     } finally {
       if (directoryWasChanged) {
         performDirectoryChange(_absoluteOldCurrentDirectory, _absoluteNewCurrentDirectory, _relativeNewCurrentDirectory, log, traceOutput);

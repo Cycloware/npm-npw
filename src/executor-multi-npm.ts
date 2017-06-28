@@ -17,7 +17,7 @@ import { getStatInfo } from './getStatInfo';
 
 import { GlobalLogger as _log } from './logger';
 
-export async function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<string> {
+export async function executor(exec: { commandText: string, argsIn?: string[], argsAsIs?: string[], argsToNpm?: string[] }): Promise<any> {
 
   let { commandText, argsIn = [], argsAsIs = [], argsToNpm = [] } = exec;
   if (argsIn.length === 0) {

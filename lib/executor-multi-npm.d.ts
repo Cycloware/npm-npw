@@ -4,4 +4,4 @@ export declare function executor(exec: {
     argsIn?: string[];
     argsAsIs?: string[];
     argsToNpm?: string[];
-}): Promise<string>;
+}): Promise<any>;
