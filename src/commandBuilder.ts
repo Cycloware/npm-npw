@@ -9,7 +9,7 @@ import { pushArray } from './pushArray';
 
 export namespace CommandBuilder {
   export type IOptions = { nArgs: number, justPeek: boolean }
-  export type CommandAction = (nArgs?: string[], argsToPass?: string[], argsToEnd?: string[]) => void;
+  export type CommandAction = (args: { taken: string[], toLead: string[], toPass: string[], toEnd: string[] }) => void;
 
   export type ICommandActionItem = {
     key: string,
@@ -36,8 +36,7 @@ export class CommandBuilder {
 
   }
 
-  public static Start()
-  {
+  public static Start() {
     return new CommandBuilder();
   }
 
@@ -106,7 +105,8 @@ export class CommandBuilder {
       dex += nArgs;
 
       if (action) {
-        action(argsTaken, argsToPassLead, argsToPassAdditional);
+        const actionArgs = { taken: argsTaken, toLead: argsToPassLead, toPass: argsToPass, toEnd: argsToPassAdditional };
+        action(actionArgs);
         actionsMatched[val] = { matchDex: dex, ...actionObject };
       }
 

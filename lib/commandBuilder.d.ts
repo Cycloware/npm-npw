@@ -4,7 +4,12 @@ export declare namespace CommandBuilder {
         nArgs: number;
         justPeek: boolean;
     };
-    type CommandAction = (nArgs?: string[], argsToPass?: string[], argsToEnd?: string[]) => void;
+    type CommandAction = (args: {
+        taken: string[];
+        toLead: string[];
+        toPass: string[];
+        toEnd: string[];
+    }) => void;
     type ICommandActionItem = {
         key: string;
         keyActual: string;

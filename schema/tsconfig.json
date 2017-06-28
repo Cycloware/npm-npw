@@ -1,0 +1,10 @@
+{
+  "compileOnSave": true,
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "../schema-out/"
+  },
+  "include": [
+    "packageInherits.ts"
+  ]
+}

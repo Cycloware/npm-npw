@@ -1,0 +1,12 @@
+{
+  "name": "npw-schema",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "typescript-json-schema 'tsconfig.json' 'IPackageInherits'"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}

@@ -36,8 +36,8 @@ export async function executor(exec: { commandText: string, argsIn?: string[], a
 
   const commands = CommandBuilder.Start()
     .command(['--cd', '-cd', 'cd'],
-    (nArgs) => {
-      changeDirTo = nArgs;
+    ({toPass}) => {
+      changeDirTo = toPass;
     }, {
       nArgs: 1,
     })

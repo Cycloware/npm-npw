@@ -106,8 +106,8 @@ ${'-'.repeat(titleLineLength).green}
 
   const commands = CommandBuilder.Start()
     .command(['--target'],
-    (nArgs) => {
-      moduleTarget = nArgs[0];
+    ({taken}) => {
+      moduleTarget = unquote(taken[0]);
       moduleTargetSource = 'command';
     }, {
       nArgs: 1,
