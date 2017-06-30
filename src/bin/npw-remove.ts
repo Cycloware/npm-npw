@@ -3,5 +3,5 @@
 
 import { executor } from '../executor';
 
-executor({ commandText: 'npw-uninstall', argsIn: ['uninstall'] });
+executor({ commandText: 'npw-remove', argsIn: ['remove'] });
 

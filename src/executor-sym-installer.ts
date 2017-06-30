@@ -83,14 +83,7 @@ export async function moduleLinker(exec: { commandText: string, argsIn?: string[
         argsIn = argsIn.concat(process.argv.slice(2))
       }
     }
-    if (!noHeader) {
-      const titleLine = `${'Cycloware'.blue} ${'Module Linker'.green.bold.italic}`;
-      const titleLineLength = ch.stripColor(titleLine).length;
-      _log.info(
-        `${titleLine}    
-${'-'.repeat(titleLineLength).green}
-`)
-    }
+
     const baseDir = process.cwd();
     const absoluteBaseDir = path.resolve(baseDir);
 
@@ -116,6 +109,9 @@ ${'-'.repeat(titleLineLength).green}
       }, {
         nArgs: 1,
       })
+      .command(['--no-header', '--noheader'], () => {
+        noHeader = true;
+      })
       .command(['--no-verify', '--verify-none'], () => {
         moduleNameVerification = false;
       })
@@ -132,6 +128,7 @@ ${'-'.repeat(titleLineLength).green}
         deleteTargets = true;
       })
       .command(['--quiet'], () => {
+        noHeader = true;
         changeGlobalLogger(['warn', 'error'])
       })
       .command(['--verbose'], () => {
@@ -143,6 +140,15 @@ ${'-'.repeat(titleLineLength).green}
 
     const commandsResult = commands.processCommands(argsIn);
     const { actionsMatched, args: { toPass: argsToPass, toPassLead: argsToPassLead, toPassAdditional: argsToPassAdditional } } = commandsResult;
+
+    if (!noHeader) {
+      const titleLine = `${'Cycloware'.blue} ${'Module Linker'.green.bold.italic}`;
+      const titleLineLength = ch.stripColor(titleLine).length;
+      _log.info(
+        `${titleLine}    
+${'-'.repeat(titleLineLength).green}
+`)
+    }
 
     let pathLib = 'unknown';
     let pathI = path;

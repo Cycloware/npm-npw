@@ -5,6 +5,32 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "entry.ts",
+      "type": "node",
+      "request": "launch",
+      "protocol": "inspector",
+      "program": "${workspaceRoot}/src/entry.ts",
+      "stopOnEntry": false,
+      "args": [
+        "add",
+        "--global"
+      ],
+      "cwd": "${workspaceRoot}/temp",
+      "preLaunchTask": null,
+      "runtimeExecutable": null,
+      "runtimeArgs": [
+        "--nolazy"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/lib/**/*.js",
+        "${workspaceRoot}/node_modules/**/*.js"
+      ]
+    },
+    {
       "name": "npw-sym.ts",
       "type": "node",
       "request": "launch",
